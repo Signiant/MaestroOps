@@ -116,5 +116,5 @@ class EnvironmentVariableJobEntry(JenkinsJobEntry):
                     print "WARNING: Hit empty entry, continuing."
                     print str(e)
                 pass
-        self.environment_variables = environment_variables_dict 
+        self.environment_variables = environment_variables_dict
 
