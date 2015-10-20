@@ -7,38 +7,50 @@ of a JenkinsJobEntry.
 The goal would be to have a full config parser, possibly using a factory if the performance of parsing a full config file for a few attributes is terrible.
 """
 
+#TODO:
+#  Make verbose/debug useful (they used to be)
+#  Expand on config parsing
+
 import sys,os,re
 from xml.dom import minidom
 from glob import glob
+
+JENKINS_DEFAULT_JOB_CONFIG_FILE = "config.xml"
 
 class InvalidEntryError(Exception):
     pass
 
 class JenkinsJobEntry(object):
-
-    #The location of the Jenkins build directory (/var/lib)
-    jenkins_build_path = None
+    """
+    Contains basic information about a Jenkins job. All information parsed by this class comes from the folder structure, but that may change in the future.
+    """
+    #The location of the Jenkins build directory (/var/lib/jenkins/jobs/.../builds)
+    build_path = None
 
     #The jenkins config file location
-    jenkins_config_file_path = None
+    config_file_path = None
 
-    #The root folder of Jenkins
+    #The root folder of Jenkins (currently unpopulated)
     jenkins_root = None
 
     #Jenkins Job Name
     name = None
     
-    #TODO: Change around to accept a job directory rather than config.xml
-    def __init__(self, config_file, verbose=False, debug=False):
-        if config_file is None:
+    def __init__(self, job_directory, verbose=False, debug=False):
+        """
+        Init verifies that the job_directory does indeed seem like a Jenkins job folder. If the config file is not found it will raise an exception.
+        """
+
+        if job_directory is None:
             raise TypeError("Unable to process a None type.")
 
-        if not os.path.exists(config_file):
-            raise InvalidEntryError("You must provide a valid Jenkins config.xml file path.")
+        self.config_file_path = os.path.join(job_directory,JENKINS_DEFAULT_JOB_CONFIG_FILE)
+        if not os.path.exists(self.config_file_path):
+            raise InvalidEntryError("The provided job does not contain a " + JENKINS_DEFAULT_JOB_CONFIG_FILE + " file under " + str(job_directory))
 
-        self.jenkins_config_file_path = config_file
-        self.jenkins_build_path = os.path.join(os.path.dirname(config_file) + "/builds")
-        self.name = os.path.basename(os.path.dirname(config_file))
+        self.jenkins_build_path = os.path.join(job_directory, "/builds")
+
+        self.name = os.path.basename(job_directory)
 
     def get_build_number_list(self, verbose=False, debug=False):
 
@@ -62,14 +74,14 @@ class EnvironmentVariableJobEntry(JenkinsJobEntry):
     #Environment variables dictionary
     environment_variables = None
 
-    def __init__(self, config_file=None, verbose=False, debug=False):
+    def __init__(self, job_directory, verbose=False, debug=False):
         
         #Call the superclass' init
         self.super = super(EnvironmentVariableJobEntry, self)
-        self.super.__init__(config_file,verbose,debug)
+        self.super.__init__(job_directory,verbose,debug)
 
         try:
-            self.__parse_environment_variables(config_file, verbose, debug)
+            self.__parse_environment_variables(self.config_file_path, verbose, debug)
 
         #Fatal Exceptions due to general XML Parsing
         except(TypeError, AttributeError):

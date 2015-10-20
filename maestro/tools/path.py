@@ -1,6 +1,9 @@
 import os
 
 def get_tree_size(path = '.'):
+    """
+    get_tree_size will return the total size of a directory tree
+    """
     if not os.path.exists(path):
         raise OSError("Path " + str(path) + " does not exist!")
 
