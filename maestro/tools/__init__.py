@@ -1,1 +1,1 @@
-__all__ = ['string'] 
+__all__ = ['string','path'] 
