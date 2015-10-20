@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 from distutils.core import setup
 
 setup(name='Maestro Framework',
-      version='0.1a1',
+      version='0.1a2',
       description='Maestro ',
       author='Matthew Corner / Signiant Inc.',
       author_email='mcorner@signiant.com',

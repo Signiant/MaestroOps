@@ -16,7 +16,6 @@ class Module(object):
 Base module class. All modules take an ObjectContainer on initialization, and must override the run() method 
 """
     id = ''
-    aliases = []
     __ioc = None
 
     def __init__(self,ioc):
