@@ -101,32 +101,34 @@ class EnvironmentVariableJobEntry(JenkinsJobEntry):
 
         #Declare the node so it's in scope 
         environment_variables_node = None
-        
+
+        #Declare the dictionary so it's in scope
+        environment_variables_dict = dict() 
+
         #Find the envinject node to get the environment variables
         for node in xml_document.getElementsByTagName("propertiesContent"):
             node_parent_parent = node.parentNode.parentNode
-            if "envinject" in str(node_parent_parent.attributes["plugin"].value):
-                environment_variables_node = node
-        if environment_variables_node is None:
+            if "envinject" not in str(node_parent_parent.attributes["plugin"].value):
+                continue
+            
+            #The actual text inside this node is considered a "TEXT_NODE", so we extract that with the following statement
+            environment_variables_string = " ".join(t.nodeValue for t in node.childNodes if t.nodeType == t.TEXT_NODE)
+       
+            #Parse the properties into a dictionary
+            for item in environment_variables_string.splitlines():
+                try:
+                    key,val = item.split("=")
+                    environment_variables_dict[key] = val 
+                except ValueError as e:
+                    if debug:
+                        print "WARNING: Hit empty entry, continuing."
+                        print str(e)
+                    pass
+
+        if len(environment_variables_dict) == 0:
             if debug is True:
                 print "ERROR: It appears that the job using " + config_file + " does not have a section for environment variables."
             raise InvalidEntryError("Unable to find the envinject properties node")  
- 
-        #The actual text inside this node is considered a "TEXT_NODE", so we extract that with the following statement
-        environment_variables_string = " ".join(t.nodeValue for t in environment_variables_node.childNodes if t.nodeType == t.TEXT_NODE)
         
-        #Declare the dictionary so it's in scope
-        environment_variables_dict = dict()
-        
-        #Parse the properties into a dictionary
-        for item in environment_variables_string.splitlines():
-            try:
-                key,val = item.split("=")
-                environment_variables_dict[key] = val 
-            except ValueError as e:
-                if debug:
-                    print "WARNING: Hit empty entry, continuing."
-                    print str(e)
-                pass
         self.environment_variables = environment_variables_dict
 
