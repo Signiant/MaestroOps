@@ -48,14 +48,15 @@ class JenkinsJobEntry(object):
         if not os.path.exists(self.config_file_path):
             raise InvalidEntryError("The provided job does not contain a " + JENKINS_DEFAULT_JOB_CONFIG_FILE + " file under " + str(job_directory))
 
-        self.jenkins_build_path = os.path.join(job_directory, "/builds")
+        self.build_path = os.path.join(job_directory, "builds")
 
         self.name = os.path.basename(job_directory)
 
     def get_build_number_list(self, verbose=False, debug=False):
 
         #Get all numeric folder names in the builds folder, assigning it to self is a cheap way to cache it
-        self.builds_in_jenkins = [os.path.basename(f) for f in glob(self.jenkins_build_path + "/[0-9]*") if os.path.isdir(f)]
+        self.builds_in_jenkins = [os.path.basename(f) for f in glob(self.build_path + "/[0-9]*") if os.path.isdir(f)]
+       
         if verbose is True:
             for b in self.builds_in_jenkins:
                 print "Found build " + b  + " in Jenkins"
