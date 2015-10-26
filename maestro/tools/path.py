@@ -8,7 +8,7 @@ def get_tree_size(path = '.'):
         raise OSError("Path " + str(path) + " does not exist!")
 
     total_size = 0
-    for dirpath, dirnames, filenames in os.walk(path):
+    for dirpath, dirnames, filenames in os.walk(str(path)):
         for f in filenames:
             fp = os.path.join(dirpath, f)
             total_size += os.path.getsize(fp)
