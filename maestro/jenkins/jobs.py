@@ -75,6 +75,9 @@ class EnvironmentVariableJobEntry(JenkinsJobEntry):
     #Environment variables dictionary
     environment_variables = None
 
+    #This should be moved up into the base class, and we should probably make a factory
+    disabled = None
+
     def __init__(self, job_directory, verbose=False, debug=False):
         
         #Call the superclass' init
@@ -99,6 +102,15 @@ class EnvironmentVariableJobEntry(JenkinsJobEntry):
             print "Parsing " + config_file
          #Parse initial xml document
         xml_document = minidom.parse(config_file)
+
+        #Get Disabled Value (wtf XML syntax)
+        disabled_val = xml_document.getElementsByTagName("disabled")[0].firstChild.nodeValue
+       
+        #Determine if it's disabled or not
+        if disabled_val == "True" or disabled_val == "true":
+            self.disabled = True
+        else:
+            self.disabled = False
 
         #Declare the node so it's in scope 
         environment_variables_node = None
