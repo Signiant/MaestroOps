@@ -2,7 +2,95 @@
 Contains some S3 helper methods and classes, currently extending boto
 """
 
-HELPTEXT = """
+
+import boto3, os, sys, botocore, traceback
+from ..internal import module
+from botocore.handlers import disable_signing
+
+def find_files(bucket, prefix, case_sensitive = True, connection = None):
+    """
+    find_files will connect and return files found in bucket with prefix, all other keys are ignored.
+
+    Optional: case_sensitivity, connection
+
+    Returns a boto3 objectCollection containing matching files, or an empty collection. Will not return any non-file keys.
+    Will raise a DownloadError with an appropriate error message when unable to return a collection.
+    """
+
+    if connection is None:
+        #Get s3 connection
+        connection = get_s3_connection()
+
+    #Verify we can connect to remote bucket
+    verify_bucket(bucket, connection=connection)
+
+
+    #Connect to the remote bucket
+    remote_bucket = connection.Bucket(bucket)
+
+    #Look for matching files if case insensitive mode 
+    if not case_sensitive:
+
+        #List of returned files
+        files = list()
+
+        #Iterate over objects, and append only ones that match lower case and don't end with '/'
+        for obj in remote_bucket.objects.all():
+            if obj.key.lower().startswith(prefix.lower()) and not obj.key.endswith("/"):
+                files.append(object)
+    else: #If we're case sensitive, just use the filter
+        files = remote_bucket.objects.filter(Prefix=prefix)
+
+    return files
+
+def get_s3_connection(anonymous = True):
+    """
+    Returns an s3 connection object. Defaults anonymous access.
+    """
+
+    #Connect to S3
+    connection = boto3.resource('s3')
+
+    if anonymous is True:
+        #Configure anonymous access
+        connection.meta.client.meta.events.register('choose-signer.s3.*',disable_signing)
+
+def verify_bucket(bucket_name,connection = None):
+    """
+    Verifies that you have read access to bucket with bucket_name and current credentials.
+    """
+    
+    #Verify we can connect to the bucket
+    try:
+        connection.meta.client.head_bucket(Bucket=bucket_name)
+    except botocore.exceptions.ClientError as e:
+        error_code = int(e.response['Error']['Code'])
+        if error_code == 404:
+            raise DownloadError("Unable to connect to remote bucket. Please verify bucket with name " + str(bucket_name) + " exists.")
+        elif error_code == 403:
+            raise DownloadError("Unable to connect to remote bucket. Access is forbidden.")
+        else:
+            raise e
+
+        
+class DownloadError(Exception):
+    pass
+
+### MODULES ####
+
+BUCKET_KEYS = ["b", "bucket"]
+CASE_INSENSITIVE_KEYS = ["i","case-insensitive"]
+DESTINATION_KEYS = ["d", "destination"]
+PATH_KEYS = ["p","path"]
+REGION_KEYS = ["r", "region"]
+HELP_KEYS = ["h", "help"]
+
+class AsyncS3Downloader(module.AsyncModule):
+        """
+        AsyncS3Downloader will download a set of files identified by 'path' to 'destination_path' from 'bucket_name' in 'region'. You may optionally set 'case_insensitive' to match a path/prefix ignoring case.
+
+        """
+        HELPTEXT = """
                 ----- S3 Downloader -----
 
 The S3 Downloader will retreive a file from an S3 bucket with anonymous
@@ -10,7 +98,8 @@ read access.
 
 -b, --bucket <bucket_name>:             Specify the name of the bucket to access
                                             (required)
--d, --destination <destination_path>
+-d, --destination <destination_path>    Specify the destination folder. Follows cp type file creation.
+                                            (default currently directory w/ remote file name)
 -i, --case-insensitive:                 Specify if the path should be treated as case insensitive
                                             (default case sensitive)
 -p, --path <path>:                      Specify the path within the bucket to access
@@ -21,57 +110,6 @@ read access.
 
 """
 
-BUCKET_KEYS = ["b", "bucket"]
-CASE_INSENSITIVE_KEYS = ["c","case-insensitive"]
-DESTINATION_KEYS = ["d", "destination"]
-PATH_KEYS = ["p","path"]
-REGION_KEYS = ["r", "region"]
-HELP_KEYS = ["h", "help"]
-
-import boto3, os, sys, botocore
-from maestro.internal import module
-from botocore.handlers import disable_signing
-
-def find_files(bucket, prefix, case_sensitive = True, connection = None):
-    
-    if connection is None:
-        #Connect to S3
-        connection = boto3.resource('s3')
-
-        #Configure anonymous access
-        connection.meta.client.meta.events.register('choose-signer.s3.*',disable_signing)
-
-    #Connect to the remote bucket
-    remote_bucket = connection.Bucket(bucket)
-
-    try:
-        connection.meta.client.head_bucket(Bucket=bucket)
-    except botocore.exceptions.ClientError as e:
-        error_code = int(e.response['Error']['Code'])
-        if error_code == 404:
-            raise DownloadError("Unable to conenct to remote bucket! Please verify bucket with name " + str(bucket) + " exists.")
-        elif error_code == 403:
-            raise DownloadError("Unable to access s3 bucket with anonymous credentials, please verify the bucket provides 'List' permissions to 'Everyone'.")
-        else:
-            raise e
-        
-  
-    #Look for matching files if case insensitive mode 
-    if not case_sensitive:
-        files = list()
-        for object in remote_bucket.objects.all():
-            if object.key.lower().startswith(prefix.lower()):
-                files.append(object)
-    else: #If we're case sensitive, it may return nothing
-        files = remote_bucket.objects.filter(Prefix=prefix)
-
-    return files
-    
-class DownloadError(Exception):
-    pass
-
-class AsyncS3Downloader(module.AsyncModule):
-
         bucket_name = None
         case_insensitive = False
         destination_path = None
@@ -80,17 +118,20 @@ class AsyncS3Downloader(module.AsyncModule):
 
         def run(self,kwargs):
             try:
-                self.__parse_kwargs__(kwargs)
+                if self.__parse_kwargs__(kwargs):
+                    return
                 self.__verify_arguments__()
                 self.download()
             except Exception as e:
-                self.exception = e
-                print str(e)
+                return e
 
         def __parse_kwargs__(self,kwargs):
+            if len(kwargs) == 0:
+                return self.help()
+
             for key, val in kwargs.iteritems():
                 if key in HELP_KEYS:
-                    self.help()
+                    return self.help()
                 elif key in BUCKET_KEYS:
                     self.bucket_name = val
                 elif key in CASE_INSENSITIVE_KEYS:
@@ -117,14 +158,11 @@ class AsyncS3Downloader(module.AsyncModule):
             #Configure anonymous access
             s3.meta.client.meta.events.register('choose-signer.s3.*',disable_signing)
             
-            self.log("Finding files...")
-            found_files = find_files(self.bucket_name, self.path, case_sensitive = not self.case_insensitive, connection = s3)
-            
             #Stupid s3 can't provide a length to their collections...
             count = 0
 
             #Loop through found files
-            for obj in found_files:
+            for obj in find_files(self.bucket_name, self.path, case_sensitive = not self.case_insensitive, connection = s3):
                 if obj.key.endswith("/"):
                     continue
                 destination = self.destination_path
@@ -155,9 +193,9 @@ class AsyncS3Downloader(module.AsyncModule):
                          head, tail = os.path.split(destination)
                          if not os.path.exists(head):
                             os.makedirs(head)
-                print "Downloading... " + obj.key
+               
+                #Perform download
                 s3.meta.client.download_file(self.bucket_name, obj.key, destination)
-                print "Downloaded " + obj.key
                 
                 #Increment counter
                 count += 1
