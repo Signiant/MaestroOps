@@ -33,6 +33,12 @@ class Module(object):
     def start(self,kwargs={}):
         self.run(kwargs=kwargs)
 
+    def help(self):
+        try:
+            print HELPTEXT
+        except NameError:
+            print "No help defined for module " + str(type(self))
+
 def __pickle_method__(m):
     """
     Pickling override for using pickle with instance methods.
