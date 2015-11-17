@@ -55,10 +55,43 @@ def get_s3_connection(anonymous = True):
         #Configure anonymous access
         connection.meta.client.meta.events.register('choose-signer.s3.*',disable_signing)
 
+    return connection
+
+def parse_s3_url(url):
+    """
+    Parses a url with format s3://bucket/prefix into a bucket and prefix
+    """
+    if not url.startswith("s3://"):
+            raise ValueError("The provided URL doesn not follow s3://{bucket_name}/{path}")
+    
+    #Parse into bucket and prefix
+    bucket = ""
+    prefix = ""
+    for index, char in enumerate(url[5:]):
+        #Everything before this char should be the bucket name
+        if char == "/":
+            #Take rest of path less '/' and s3://
+            prefix = url[(index+6):]
+            break
+        #Build bucket string
+        bucket += char
+
+    if not bucket:
+        raise ValueError("The provided URL " + str(url) + " is not valid. Please enter a URL following s3://{bucket_name}/path") 
+
+    if not prefix:
+        prefix = "/"
+
+    return bucket, prefix
+
+
 def verify_bucket(bucket_name,connection = None):
     """
     Verifies that you have read access to bucket with bucket_name and current credentials.
     """
+
+    if connection is None:
+        connection = get_s3_connection(anonymous=True)
     
     #Verify we can connect to the bucket
     try:
@@ -81,13 +114,14 @@ class DownloadError(Exception):
 BUCKET_KEYS = ["b", "bucket"]
 CASE_INSENSITIVE_KEYS = ["i","case-insensitive"]
 DESTINATION_KEYS = ["d", "destination"]
-PATH_KEYS = ["p","path"]
+PATH_KEYS = ["p","prefix"]
 REGION_KEYS = ["r", "region"]
+SOURCE_KEYS = ["s", "source"]
 HELP_KEYS = ["h", "help"]
 
 class AsyncS3Downloader(module.AsyncModule):
         """
-        AsyncS3Downloader will download a set of files identified by 'path' to 'destination_path' from 'bucket_name' in 'region'. You may optionally set 'case_insensitive' to match a path/prefix ignoring case.
+        AsyncS3Downloader will download a set of files identified by 'prefix' to 'destination_path' from 'bucket_name' in 'region'. You may optionally use a source URL in the form of 's3://bucket/prefix' or set 'case_insensitive' to match a path/prefix ignoring case.
 
         """
         HELPTEXT = """
@@ -96,24 +130,26 @@ class AsyncS3Downloader(module.AsyncModule):
 The S3 Downloader will retreive a file from an S3 bucket with anonymous
 read access.
 
--b, --bucket <bucket_name>:             Specify the name of the bucket to access
+-b, --bucket <bucket_name>:         Specify the name of the bucket to access
                                             (required)
--d, --destination <destination_path>    Specify the destination folder. Follows cp type file creation.
-                                            (default currently directory w/ remote file name)
--i, --case-insensitive:                 Specify if the path should be treated as case insensitive
+-d, --destination <dest_path>       Specify the destination on local filesystem
+                                            (default  './')
+-i, --case-insensitive:             Specify if the path should be treated as case insensitive
                                             (default case sensitive)
--p, --path <path>:                      Specify the path within the bucket to access
-                                            (required)
--r, --region <aws_region>:              Specify the amazon region to locate the bucket.
+-p, --prefix <path>:                Specify the path prefix within the bucket to access
+                                            (default '/")
+-r, --region <aws_region>:          Specify the amazon region to locate the bucket
                                             (default 'us-east-1')
--h, --help:                             Display this help text
+-s, --source <src_url>:             Specify the source URL
+                                            (ignored when bucket is set)
+-h, --help:                         Display this help text
 
 """
 
         bucket_name = None
         case_insensitive = False
         destination_path = None
-        path = None
+        prefix = None
         region = None
 
         def run(self,kwargs):
@@ -123,7 +159,7 @@ read access.
                 self.__verify_arguments__()
                 self.download()
             except Exception as e:
-                return e
+                return Exception("".join(traceback.format_exception(*sys.exc_info())))
 
         def __parse_kwargs__(self,kwargs):
             if len(kwargs) == 0:
@@ -139,30 +175,43 @@ read access.
                 elif key in DESTINATION_KEYS:
                     self.destination_path = val
                 elif key in PATH_KEYS:
-                    self.path = val
+                    self.prefix = val
                 elif key in REGION_KEYS:
                     self.region = val
+                elif key in SOURCE_KEYS:
+                    self.source_url = val
 
         def __verify_arguments__(self):
-            if self.bucket_name is None:
-                raise DownloadError("You need to specify a bucket name!")
-            if self.path is None:
-                raise DownloadError("You need to specify a prefix or path to the files!")
+            if self.bucket_name is None and self.source_url is None:
+                raise DownloadError("You need to specify a bucket name or a source url.")
+            if self.prefix is None:
+                self.prefix = "/"
+            #TODO: Add region mapping
             if self.region is None:
                 self.region = 'us-east-1'
+            if self.destination_path is None:
+                self.destination_path = "./"
+
+
+            
 
         def download(self):
-            #Connect to S3
-            s3 = boto3.resource('s3')
 
-            #Configure anonymous access
-            s3.meta.client.meta.events.register('choose-signer.s3.*',disable_signing)
+            #Determine if we're parsing a url
+            if self.bucket_name is None:
+                self.bucket_name, self.prefix = parse_s3_url(self.source_url)
             
+            #Connect to S3
+            s3 = get_s3_connection(anonymous=True)
+            
+            #Verify bucket
+            verify_bucket(self.bucket_name, s3)
+
             #Stupid s3 can't provide a length to their collections...
             count = 0
 
             #Loop through found files
-            for obj in find_files(self.bucket_name, self.path, case_sensitive = not self.case_insensitive, connection = s3):
+            for obj in find_files(self.bucket_name, self.prefix, case_sensitive = not self.case_insensitive, connection = s3):
                 if obj.key.endswith("/"):
                     continue
                 destination = self.destination_path
@@ -201,10 +250,10 @@ read access.
                 count += 1
 
             if count == 0:
-                raise DownloadError("No files found matching " + self.path)
+                raise DownloadError("No files found matching " + self.prefix)
 
 if __name__ == "__main__":
-    import time
+    import time,traceback
     current_key = None
     keyvals = dict()
 
@@ -227,7 +276,8 @@ if __name__ == "__main__":
     while s3dl.status != module.DONE:
         if s3dl.exception is not None:
             raise s3dl.exception
-        time.sleep(2)
+        time.sleep(1)
+        print "Waiting..."
     if s3dl.exception is not None:
         raise s3dl.exception
 
