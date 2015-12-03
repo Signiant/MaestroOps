@@ -6,13 +6,15 @@ Contains simple container class for Modules and the associated Exceptions.
 """
 
 class ObjectContainer(object):
-"""
-Simple IoC Container.
+    """
+    Simple IoC Container.
 
-You can init with a type, and the container will only accept those. Otherwise it will take the object type of the first registered object.
+    You can init with a type, and the container will only accept those. Otherwise it will take the object type of the first registered object.
 
-Don't change the object_type manually, and don't reuse it.
-"""
+    Don't change the object_type manually, and don't reuse it.
+
+    """
+    
     __objects = None
     object_type = None
 
