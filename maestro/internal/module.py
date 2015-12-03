@@ -6,13 +6,25 @@ Modules are one-off runnable tasks. All modules should extend the Module() class
 Modules are meant to help build modular tools. 
 """
 import logging, types, copy_reg
-from multiprocessing import Pool, log_to_stderr
+from multiprocessing import Process, log_to_stderr
+from multiprocessing.pool import Pool
 from logging import INFO
 
 #Status states
 NOT_STARTED = 0
 RUNNING = 1
 DONE = 2
+
+class NoDaemonProcess(Process):
+    # make 'daemon' attribute always return False
+    def _get_daemon(self):
+        return False
+    def _set_daemon(self, value):
+        pass
+    daemon = property(_get_daemon, _set_daemon)
+
+class NonDaemonizedPool(Pool):
+    Process = NoDaemonProcess
 
 class Module(object):
     """
@@ -72,7 +84,7 @@ class AsyncModule(Module):
         """
         The main method to start a module. In Async, it will return immediately with the result from apply_async. 
         """
-        pool = Pool(processes=1)
+        pool = NonDaemonizedPool(processes=1)
 	self.status = RUNNING
 	result = pool.apply_async(self.__setup__,[kwargs],callback=self.__finish_internal__)
         return result
@@ -82,8 +94,8 @@ class AsyncModule(Module):
         Internal setup method, this should not be overridden unless you know what you're doing. Calls the run method.
         """
         #Set up logger
-        self.__logger__ = log_to_stderr()
-        self.__logger__.setLevel(INFO)
+        #self.__logger__ = log_to_stderr()
+        #self.__logger__.setLevel(INFO)
         return self.run(kwargs=kwargs)
 
     def __finish_internal__(self,callback_args):
