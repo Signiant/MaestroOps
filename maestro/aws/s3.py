@@ -3,7 +3,7 @@ Contains some S3 helper methods and classes, currently extending boto
 """
 
 
-import boto3, os, sys, botocore, traceback
+import boto3, os, sys, botocore, traceback, urlparse
 from ..internal import module
 from botocore.handlers import disable_signing
 
@@ -11,7 +11,7 @@ def find_files(bucket, prefix, case_sensitive = True, connection = None):
     """
     find_files will connect and return files found in bucket with prefix, all other keys are ignored.
 
-    Optional: case_sensitivity, connection
+    Optional: case_sensitive, connection
 
     Returns a boto3 objectCollection containing matching files, or an empty collection. Will not return any non-file keys.
     Will raise a DownloadError with an appropriate error message when unable to return a collection.
@@ -45,7 +45,7 @@ def find_files(bucket, prefix, case_sensitive = True, connection = None):
 
 def get_s3_connection(anonymous = True):
     """
-    Returns an s3 connection object. Defaults anonymous access.
+    Returns an s3 connection object. Configures anonymous access by default.
     """
 
     #Connect to S3
@@ -62,7 +62,7 @@ def parse_s3_url(url):
     Parses a url with format s3://bucket/prefix into a bucket and prefix
     """
     if not url.startswith("s3://"):
-            raise ValueError("The provided URL doesn not follow s3://{bucket_name}/{path}")
+            raise ValueError("The provided URL does not follow s3://{bucket_name}/{path}")
     
     #Parse into bucket and prefix
     bucket = ""
@@ -84,6 +84,14 @@ def parse_s3_url(url):
 
     return bucket, prefix
 
+def join_s3_url(prefix, *elements):
+    url_builder = prefix
+    for element in elements:
+        if url_builder[-1] == "/":
+            url_builder += element
+        else:
+            url_builder += "/" + element
+    return url_builder
 
 def verify_bucket(bucket_name,connection = None):
     """
@@ -151,20 +159,23 @@ read access.
         destination_path = None
         prefix = None
         region = None
+        source_url = None
 
         def run(self,kwargs):
             try:
-                if self.__parse_kwargs__(kwargs):
-                    return
+                if kwargs is not None and len(kwargs) > 0:
+                    if not self.__parse_kwargs__(kwargs):
+                        return
                 self.__verify_arguments__()
-                self.download()
+                return self.download()
             except Exception as e:
                 return Exception("".join(traceback.format_exception(*sys.exc_info())))
 
         def __parse_kwargs__(self,kwargs):
-            if len(kwargs) == 0:
+            if kwargs is None:
+                return True
+            if len(kwargs) == 0 and self.bucket_name is None and self.source_url is None:
                 return self.help()
-
             for key, val in kwargs.iteritems():
                 if key in HELP_KEYS:
                     return self.help()
@@ -180,7 +191,10 @@ read access.
                     self.region = val
                 elif key in SOURCE_KEYS:
                     self.source_url = val
-
+                else:
+                    print "Invalid option: " + str(val)
+                    return False
+                return True
         def __verify_arguments__(self):
             if self.bucket_name is None and self.source_url is None:
                 raise DownloadError("You need to specify a bucket name or a source url.")
@@ -192,11 +206,7 @@ read access.
             if self.destination_path is None:
                 self.destination_path = "./"
 
-
-            
-
         def download(self):
-
             #Determine if we're parsing a url
             if self.bucket_name is None:
                 self.bucket_name, self.prefix = parse_s3_url(self.source_url)
@@ -209,6 +219,9 @@ read access.
 
             #Stupid s3 can't provide a length to their collections...
             count = 0
+            
+            #Return value
+            destination_files = list()
 
             #Loop through found files
             for obj in find_files(self.bucket_name, self.prefix, case_sensitive = not self.case_insensitive, connection = s3):
@@ -225,7 +238,7 @@ read access.
                     #Case Provided path is a file
                     else:
                         #TODO: do something
-                        print "Overwriting file: " + str(destination)
+                        print "Unconfirmed case"
                 #Case: Provided path does not exist
                 else:
                     #Case: Provided path ends with a path seperator
@@ -242,15 +255,19 @@ read access.
                          head, tail = os.path.split(destination)
                          if not os.path.exists(head):
                             os.makedirs(head)
-               
                 #Perform download
                 s3.meta.client.download_file(self.bucket_name, obj.key, destination)
                 
+                #Append downloaded file names
+                destination_files.append(os.path.abspath(destination))
+    
                 #Increment counter
                 count += 1
 
             if count == 0:
                 raise DownloadError("No files found matching " + self.prefix)
+            
+            return destination_files
 
 if __name__ == "__main__":
     import time,traceback
