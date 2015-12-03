@@ -62,7 +62,7 @@ def parse_s3_url(url):
     Parses a url with format s3://bucket/prefix into a bucket and prefix
     """
     if not url.startswith("s3://"):
-            raise ValueError("The provided URL doesn not follow s3://{bucket_name}/{path}")
+            raise ValueError("The provided URL does not follow s3://{bucket_name}/{path}")
     
     #Parse into bucket and prefix
     bucket = ""
@@ -159,11 +159,13 @@ read access.
         destination_path = None
         prefix = None
         region = None
+        source_url = None
 
         def run(self,kwargs):
             try:
-                if not self.__parse_kwargs__(kwargs):
-                    return
+                if kwargs is not None and len(kwargs) > 0:
+                    if not self.__parse_kwargs__(kwargs):
+                        return
                 self.__verify_arguments__()
                 return self.download()
             except Exception as e:
@@ -189,7 +191,10 @@ read access.
                     self.region = val
                 elif key in SOURCE_KEYS:
                     self.source_url = val
-
+                else:
+                    print "Invalid option: " + str(val)
+                    return False
+                return True
         def __verify_arguments__(self):
             if self.bucket_name is None and self.source_url is None:
                 raise DownloadError("You need to specify a bucket name or a source url.")
