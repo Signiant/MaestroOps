@@ -1,1 +1,1 @@
-__all__=["ioc", "module"]
+__all__=["module"]

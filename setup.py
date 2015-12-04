@@ -1,11 +1,13 @@
 from setuptools import setup, find_packages
 from distutils.core import setup
 
-setup(name='Maestro Framework',
-      version='0.1.1',
-      description='Maestro ',
-      author='Matthew Corner / Signiant Inc.',
+setup(name='MaestroOps',
+      version='0.2.3',
+      description='Python Automation Framework for Development Operations Teams',
+      author='Matthew Corner',
       author_email='mcorner@signiant.com',
       url='https://www.signiant.com',
-      packages=find_packages()
+      packages=find_packages(),
+      license='MIT',
+      install_requires=['boto3>=1.0.0']
      )
