@@ -5,15 +5,25 @@ Modules are one-off runnable tasks. All modules should extend the Module() class
 
 Modules are meant to help build modular tools. 
 """
-import logging, types, copy_reg
+import logging, types, copy_reg, sys, traceback
 from multiprocessing import Process, log_to_stderr
 from multiprocessing.pool import Pool
 from logging import INFO
 
-#Status states
+#Module states
 NOT_STARTED = 0
 RUNNING = 1
 DONE = 2
+PROCESSED = sys.maxsize
+
+#Exceptions
+class AsyncException(Exception):
+    """
+    Async exceptions are the exceptions that are returned from an AsyncModule. It provides the
+    original traceback as a string under "traceback", and also provides the original string
+    message under "message"
+    """
+    traceback = None
 
 class NoDaemonProcess(Process):
     # make 'daemon' attribute always return False
@@ -93,11 +103,17 @@ class AsyncModule(Module):
         """
         Internal setup method, this should not be overridden unless you know what you're doing. Calls the run method.
         """
-        #Set up logger
-        #self.__logger__ = log_to_stderr()
-        #self.__logger__.setLevel(INFO)
-        return self.run(kwargs=kwargs)
-
+        #If we're an AsyncModule, we need to catch Exceptions so they can be converted and passed to the parent process 
+        try:
+            return self.run(kwargs=kwargs)
+        except Exception as e:
+            try:
+                exc = AsyncException(e.message)
+                exc.traceback = "".join(traceback.format_exception(*sys.exc_info()))
+                return exc
+            except Exception as e:
+                print ("FATAL ERROR -- " + str(e))
+    
     def __finish_internal__(self,callback_args):
         """
         Internal finish method. This should not be overridden unless you know what you're doing. Calls the finish method.
@@ -118,4 +134,7 @@ class AsyncModule(Module):
         """
         Log method, currently set to only print to the console. Thread-safe.
         """
+        if self.__logger__ is None:
+            self.__logger__ = log_to_stderr()
+            self.__logger__.setLevel(INFO)
         self.__logger__.info(message)

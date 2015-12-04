@@ -162,14 +162,11 @@ read access.
         source_url = None
 
         def run(self,kwargs):
-            try:
-                if kwargs is not None and len(kwargs) > 0:
-                    if not self.__parse_kwargs__(kwargs):
-                        return
-                self.__verify_arguments__()
-                return self.download()
-            except Exception as e:
-                return Exception("".join(traceback.format_exception(*sys.exc_info())))
+            if kwargs is not None and len(kwargs) > 0:
+                if not self.__parse_kwargs__(kwargs):
+                    return
+            self.__verify_arguments__()
+            return self.download()
 
         def __parse_kwargs__(self,kwargs):
             if kwargs is None:
