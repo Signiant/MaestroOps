@@ -57,9 +57,10 @@ class Module(object):
 
     def help(self):
         try:
-            print HELPTEXT
+            print self.HELPTEXT
         except NameError:
             print "No help defined for module " + str(type(self))
+        return True
 
 def __pickle_method__(m):
     """
@@ -138,3 +139,4 @@ class AsyncModule(Module):
             self.__logger__ = log_to_stderr()
             self.__logger__.setLevel(INFO)
         self.__logger__.info(message)
+
