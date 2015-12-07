@@ -19,12 +19,12 @@ class SingleObjectContainer(object):
     object_type = None
 
     def __init__(self, obj_type = None):
-        if object_type is not None and not isinstance(Type, obj_type):
+        if self.object_type is not None and not isinstance(Type, obj_type):
             raise TypeError("Expected type Type got " + str(type(obj_type)) + ".")
         self.object_type = obj_type
         self.__objects = dict()
 
-    def register(self, obj, id):
+    def register(self, id, obj):
         if obj is None:
             raise TypeError("You cannot register a None type.")
 
@@ -37,8 +37,8 @@ class SingleObjectContainer(object):
         if self.object_type is None:
             self.object_type = type(obj)
 
-        if not isinstance(self.object_type, obj):
-            raise TypeError("The object passed to the Container was not of type " + str(object_type) + ".")
+        if not isinstance(obj, self.object_type):
+            raise TypeError("The object passed to the Container was not of type " + str(self.object_type) + ".")
 
         if id in self.__objects.keys():
             raise ValueError("ID " + str(id) + " is already registered with this container.")
@@ -65,12 +65,15 @@ class SingleObjectContainer(object):
 
         return item_type()
 
-    def unregister(self, id): self.deregister(id)
+    def unregister(self, id): return self.deregister(id)
         
     def __getitem__(self,id):
         if id not in self.__objects.keys():
-            raise KeyError("A " + str(self.object_type + " object with id " + str(id) + " is not registered with this container.")
+            raise KeyError("A " + str(self.object_type) + " object with id " + str(id) + " is not registered with this container.")
 
         return self.__objects[id] 
 
-    def get(self,id) : self.__getitem__(id)
+    def get(self,id) : return self.__getitem__(id)
+
+    def list(self):
+        return self.__objects.items()

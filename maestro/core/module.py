@@ -36,6 +36,9 @@ class NoDaemonProcess(Process):
 class NonDaemonizedPool(Pool):
     Process = NoDaemonProcess
 
+###TODO: change modules to accept kwargs and args
+
+
 class Module(object):
     """
     Base module class. All modules may take an ObjectContainer on initialization, and must override the run() method 
@@ -44,8 +47,7 @@ class Module(object):
     __ioc__ = None
 
     def __init__(self,ioc=None):
-        if ioc is not None:
-            self.__ioc__ = ioc    
+        self.__ioc__ = ioc    
 
     def getObject(self,name):
         return self.__ioc__.get(name)
