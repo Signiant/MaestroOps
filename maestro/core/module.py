@@ -36,18 +36,24 @@ class NoDaemonProcess(Process):
 class NonDaemonizedPool(Pool):
     Process = NoDaemonProcess
 
+###TODO: change modules to accept kwargs and args
+
+
 class Module(object):
     """
-    Base module class. All modules take an ObjectContainer on initialization, and must override the run() method 
+    Base module class. All modules may take an ObjectContainer on initialization, and must override the run() method 
     """
     id = ''
     __ioc__ = None
 
-    def __init__(self,ioc):
+    def __init__(self,ioc=None):
         self.__ioc__ = ioc    
 
-    def getModule(self,name):
-        self.__ioc__.getModule(name)
+    def getObject(self,name):
+        return self.__ioc__.get(name)
+
+    def getObjectInstance(self, name):
+        return self.__ioc__.getinstance(name)
     
     def run(self,kwargs={}):
         pass
@@ -84,11 +90,11 @@ class AsyncModule(Module):
     exception = None
     __logger__ = None
 
-    def __init__(self,ioc):
+    def __init__(self,ioc=None):
         """
         Sets the current status and calls the superclass' init
         """
-        super(AsyncModule,self).__init__(ioc)
+        super(AsyncModule,self).__init__(ioc=ioc)
         self.status = NOT_STARTED
 
     def start(self,kwargs={}):

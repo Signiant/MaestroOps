@@ -4,7 +4,7 @@ Contains some S3 helper methods and classes, currently extending boto
 
 
 import boto3, os, sys, botocore, traceback, urlparse
-from ..internal import module
+from ..core import module
 from botocore.handlers import disable_signing
 
 def find_files(bucket, prefix, case_sensitive = True, connection = None):
