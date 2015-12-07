@@ -5,14 +5,16 @@ Contains simple container class for Modules and the associated Exceptions.
 
 """
 
-class ObjectContainer(object):
-"""
-Simple IoC Container.
+class SingleObjectContainer(object):
+    """
+    Simple IoC Container.
 
-You can init with a type, and the container will only accept those. Otherwise it will take the object type of the first registered object.
+    You can init with a type, and the container will only accept those. Otherwise it will take the object type of the first registered object.
 
-Don't change the object_type manually, and don't reuse it.
-"""
+    Don't change the object_type manually, and don't reuse it.
+
+    """
+    
     __objects = None
     object_type = None
 
@@ -63,14 +65,12 @@ Don't change the object_type manually, and don't reuse it.
 
         return item_type()
 
-    #Alias unregister
-    self.unregister = self.deregister
+    def unregister(self, id): self.deregister(id)
         
     def __getitem__(self,id):
         if id not in self.__objects.keys():
             raise KeyError("A " + str(self.object_type + " object with id " + str(id) + " is not registered with this container.")
 
         return self.__objects[id] 
- 
-    #Alias get
-    self.get = self.__getitem__
+
+    def get(self,id) : self.__getitem__(id)
