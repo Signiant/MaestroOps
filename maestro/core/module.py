@@ -1,9 +1,9 @@
 """
 module.py
-    
+
 Modules are one-off runnable tasks. All modules should extend the Module() class.
 
-Modules are meant to help build modular tools. 
+Modules are meant to help build modular tools.
 """
 import logging, types, copy_reg, sys, traceback
 from multiprocessing import Process, log_to_stderr
@@ -41,20 +41,20 @@ class NonDaemonizedPool(Pool):
 
 class Module(object):
     """
-    Base module class. All modules may take an ObjectContainer on initialization, and must override the run() method 
+    Base module class. All modules may take an ObjectContainer on initialization, and must override the run() method
     """
     id = ''
     __ioc__ = None
 
     def __init__(self,ioc=None):
-        self.__ioc__ = ioc    
+        self.__ioc__ = ioc
 
     def getObject(self,name):
         return self.__ioc__.get(name)
 
     def getObjectInstance(self, name):
         return self.__ioc__.getinstance(name)
-    
+
     def run(self,kwargs={}):
         pass
 
@@ -63,9 +63,9 @@ class Module(object):
 
     def help(self):
         try:
-            print self.HELPTEXT
+            print (self.HELPTEXT)
         except NameError:
-            print "No help defined for module " + str(type(self))
+            print ("No help defined for module " + str(type(self)))
         return True
 
 def __pickle_method__(m):
@@ -81,7 +81,7 @@ copy_reg.pickle(types.MethodType, __pickle_method__)
 
 class AsyncModule(Module):
     """
-    Builds on the Module class to add asynchronous functionality for modules that can support it. 
+    Builds on the Module class to add asynchronous functionality for modules that can support it.
 
     Intra/inter synchronization must be handled by each module. Modules are seperate processes.
     """
@@ -99,7 +99,7 @@ class AsyncModule(Module):
 
     def start(self,kwargs={}):
         """
-        The main method to start a module. In Async, it will return immediately with the result from apply_async. 
+        The main method to start a module. In Async, it will return immediately with the result from apply_async.
         """
         pool = NonDaemonizedPool(processes=1)
 	self.status = RUNNING
@@ -110,7 +110,7 @@ class AsyncModule(Module):
         """
         Internal setup method, this should not be overridden unless you know what you're doing. Calls the run method.
         """
-        #If we're an AsyncModule, we need to catch Exceptions so they can be converted and passed to the parent process 
+        #If we're an AsyncModule, we need to catch Exceptions so they can be converted and passed to the parent process
         try:
             return self.run(kwargs=kwargs)
         except Exception as e:
@@ -120,7 +120,7 @@ class AsyncModule(Module):
                 return exc
             except Exception as e:
                 print ("FATAL ERROR -- " + str(e))
-    
+
     def __finish_internal__(self,callback_args):
         """
         Internal finish method. This should not be overridden unless you know what you're doing. Calls the finish method.
@@ -145,4 +145,3 @@ class AsyncModule(Module):
             self.__logger__ = log_to_stderr()
             self.__logger__.setLevel(INFO)
         self.__logger__.info(message)
-

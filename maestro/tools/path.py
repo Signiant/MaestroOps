@@ -38,7 +38,7 @@ def get_case_insensitive_path(path = '.'):
     if not os.path.exists(path_root):
         raise OSError("Unable to locate path root: " + str(path_root))
 
-    #Build the full path, also used for error messages 
+    #Build the full path, also used for error messages
     full_path = path_root
     for element in path_elements:
         if not element or element == "/" or element == ".":
@@ -69,16 +69,21 @@ def symlink(source, link_name):
         if csl(link_name, source, flags) == 0:
             raise ctypes.WinError()
 
+def purge(pattern, path):
+    for root, dirs, files in os.walk(path):
+        for file in filter(lambda x: re.match(pattern, x), files):
+            os.remove(os.path.join(root, file))
+
 # Credit: John Machin
 #         http://stackoverflow.com/questions/4579908/cross-platform-splitting-of-path-in-python
 def full_split(path, debug=False):
     """
-    full_split will split Windows and UNIX paths into seperate elements 
+    full_split will split Windows and UNIX paths into seperate elements
     """
     parts = []
     while True:
         newpath, tail = os.path.split(path)
-        if debug: print repr(path), (newpath, tail)
+        if debug: print (repr(path), (newpath, tail))
         if newpath == path:
             assert not tail
             if path: parts.append(path)
