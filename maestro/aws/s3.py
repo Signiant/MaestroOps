@@ -28,7 +28,7 @@ def find_files(bucket, prefix, case_sensitive = True, connection = None):
     #Connect to the remote bucket
     remote_bucket = connection.Bucket(bucket)
 
-    #Look for matching files if case insensitive mode 
+    #Look for matching files if case insensitive mode
     if not case_sensitive:
 
         #List of returned files
@@ -63,7 +63,7 @@ def parse_s3_url(url):
     """
     if not url.startswith("s3://"):
             raise ValueError("The provided URL does not follow s3://{bucket_name}/{path}")
-    
+
     #Parse into bucket and prefix
     bucket = ""
     prefix = ""
@@ -77,7 +77,7 @@ def parse_s3_url(url):
         bucket += char
 
     if not bucket:
-        raise ValueError("The provided URL " + str(url) + " is not valid. Please enter a URL following s3://{bucket_name}/path") 
+        raise ValueError("The provided URL " + str(url) + " is not valid. Please enter a URL following s3://{bucket_name}/path")
 
     if not prefix:
         prefix = "/"
@@ -100,7 +100,7 @@ def verify_bucket(bucket_name,connection = None):
 
     if connection is None:
         connection = get_s3_connection(anonymous=True)
-    
+
     #Verify we can connect to the bucket
     try:
         connection.meta.client.head_bucket(Bucket=bucket_name)
@@ -113,7 +113,7 @@ def verify_bucket(bucket_name,connection = None):
         else:
             raise e
 
-        
+
 class DownloadError(Exception):
     pass
 
@@ -189,7 +189,7 @@ read access.
                 elif key in SOURCE_KEYS:
                     self.source_url = val
                 else:
-                    print "Invalid option: " + str(val)
+                    print("Invalid option: " + str(val))
                     return False
                 return True
         def __verify_arguments__(self):
@@ -207,16 +207,16 @@ read access.
             #Determine if we're parsing a url
             if self.bucket_name is None:
                 self.bucket_name, self.prefix = parse_s3_url(self.source_url)
-            
+
             #Connect to S3
             s3 = get_s3_connection(anonymous=True)
-            
+
             #Verify bucket
             verify_bucket(self.bucket_name, s3)
 
             #Stupid s3 can't provide a length to their collections...
             count = 0
-            
+
             #Return value
             destination_files = list()
 
@@ -235,7 +235,7 @@ read access.
                     #Case Provided path is a file
                     else:
                         #TODO: do something
-                        print "Unconfirmed case"
+                        print ("Unconfirmed case")
                 #Case: Provided path does not exist
                 else:
                     #Case: Provided path ends with a path seperator
@@ -254,16 +254,16 @@ read access.
                             os.makedirs(head)
                 #Perform download
                 s3.meta.client.download_file(self.bucket_name, obj.key, destination)
-                
+
                 #Append downloaded file names
                 destination_files.append(os.path.abspath(destination))
-    
+
                 #Increment counter
                 count += 1
 
             if count == 0:
                 raise DownloadError("No files found matching " + self.prefix)
-            
+
             return destination_files
 
 if __name__ == "__main__":
@@ -284,15 +284,13 @@ if __name__ == "__main__":
             current_key = arg.lstrip('-')
     if current_key is not None and current_key not in keyvals.keys():
         keyvals[current_key] = ""
-    
+
     s3dl = AsyncS3Downloader(None)
     s3dl.start(keyvals)
     while s3dl.status != module.DONE:
         if s3dl.exception is not None:
             raise s3dl.exception
         time.sleep(1)
-        print "Waiting..."
+        print ("Waiting...")
     if s3dl.exception is not None:
         raise s3dl.exception
-
-
