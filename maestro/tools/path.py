@@ -1,4 +1,4 @@
-import os, platform
+import os, platform, re
 
 def get_tree_size(path = '.'):
     """

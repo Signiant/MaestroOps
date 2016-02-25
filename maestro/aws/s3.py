@@ -6,6 +6,7 @@ Contains some S3 helper methods and classes, currently extending boto
 import boto3, os, sys, botocore, traceback, urlparse
 from ..core import module
 from botocore.handlers import disable_signing
+from ..tools import file
 
 def find_files(bucket, prefix, case_sensitive = True, connection = None):
     """
@@ -21,25 +22,31 @@ def find_files(bucket, prefix, case_sensitive = True, connection = None):
         #Get s3 connection
         connection = get_s3_connection()
 
+    s3client = boto3.client('s3')
+
     #Verify we can connect to remote bucket
     verify_bucket(bucket, connection=connection)
-
 
     #Connect to the remote bucket
     remote_bucket = connection.Bucket(bucket)
 
+    #List of returned files
+    files = list()
+
     #Look for matching files if case insensitive mode
     if not case_sensitive:
-
-        #List of returned files
-        files = list()
-
         #Iterate over objects, and append only ones that match lower case and don't end with '/'
         for obj in remote_bucket.objects.all():
             if obj.key.lower().startswith(prefix.lower()) and not obj.key.endswith("/"):
-                files.append(object)
+                objsum = s3client.get_object(Bucket=bucket, Key=obj.key)["ETag"][1:-1]
+                files.append((obj, objsum))
     else: #If we're case sensitive, just use the filter
         files = remote_bucket.objects.filter(Prefix=prefix)
+        sum_files = list()
+        for f in files:
+            objsum = s3client.get_object(Bucket=bucket, Key=f.key)["ETag"][1:-1]
+            sum_files.append((f, objsum))
+        files = sum_files
 
     return files
 
@@ -221,7 +228,7 @@ read access.
             destination_files = list()
 
             #Loop through found files
-            for obj in find_files(self.bucket_name, self.prefix, case_sensitive = not self.case_insensitive, connection = s3):
+            for obj, checksum in find_files(self.bucket_name, self.prefix, case_sensitive = not self.case_insensitive, connection = s3):
                 if obj.key.endswith("/"):
                     continue
                 destination = self.destination_path
@@ -256,7 +263,7 @@ read access.
                 s3.meta.client.download_file(self.bucket_name, obj.key, destination)
 
                 #Append downloaded file names
-                destination_files.append(os.path.abspath(destination))
+                destination_files.append((os.path.abspath(destination), checksum))
 
                 #Increment counter
                 count += 1

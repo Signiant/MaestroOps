@@ -102,8 +102,8 @@ class AsyncModule(Module):
         The main method to start a module. In Async, it will return immediately with the result from apply_async.
         """
         pool = NonDaemonizedPool(processes=1)
-	self.status = RUNNING
-	result = pool.apply_async(self.__setup__,[kwargs],callback=self.__finish_internal__)
+        self.status = RUNNING
+        result = pool.apply_async(self.__setup__,[kwargs],callback=self.__finish_internal__)
         return result
 
     def __setup__(self,kwargs):
