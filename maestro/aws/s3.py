@@ -4,8 +4,10 @@ Contains some S3 helper methods and classes, currently extending boto
 
 
 import boto3, os, sys, botocore, traceback, urlparse
-from ..core import module
 from botocore.handlers import disable_signing
+from botocore import UNSIGNED
+from botocore.client import Config
+from ..core import module
 from ..tools import file
 
 def find_files(bucket, prefix, case_sensitive = True, connection = None):
@@ -22,7 +24,7 @@ def find_files(bucket, prefix, case_sensitive = True, connection = None):
         #Get s3 connection
         connection = get_s3_connection()
 
-    s3client = boto3.client('s3')
+    s3client = boto3.client('s3', config=Config(signature_version=UNSIGNED))
 
     #Verify we can connect to remote bucket
     verify_bucket(bucket, connection=connection)
