@@ -35,7 +35,7 @@ class JenkinsJobEntry(object):
 
     #Jenkins Job Name
     name = None
-    
+
     def __init__(self, job_directory, verbose=False, debug=False):
         """
         Init verifies that the job_directory does indeed seem like a Jenkins job folder. If the config file is not found it will raise an exception.
@@ -56,12 +56,12 @@ class JenkinsJobEntry(object):
 
         #Get all numeric folder names in the builds folder, assigning it to self is a cheap way to cache it
         self.builds_in_jenkins = [os.path.basename(f) for f in glob(self.build_path + "/[0-9]*") if os.path.isdir(f)]
-       
+
         if verbose is True:
             for b in self.builds_in_jenkins:
-                print "Found build " + b  + " in Jenkins"
+                print ("Found build " + b  + " in Jenkins")
         return self.builds_in_jenkins
-    
+
 
 class EnvironmentVariableJobEntry(JenkinsJobEntry):
     """
@@ -75,8 +75,11 @@ class EnvironmentVariableJobEntry(JenkinsJobEntry):
     #Environment variables dictionary
     environment_variables = None
 
+    #This should be moved up into the base class, and we should probably make a factory
+    disabled = None
+
     def __init__(self, job_directory, verbose=False, debug=False):
-        
+
         #Call the superclass' init
         self.super = super(EnvironmentVariableJobEntry, self)
         self.super.__init__(job_directory,verbose,debug)
@@ -88,7 +91,7 @@ class EnvironmentVariableJobEntry(JenkinsJobEntry):
         except(TypeError, AttributeError):
             raise InvalidEntryError("Unable to parse the XML for this entry!")
 
-        #Fatal Exception due to not having a plugin attribute 
+        #Fatal Exception due to not having a plugin attribute
         except(KeyError):
             if debug is True:
                 print "ERROR: It appears that the job using " + config_file + " does not have a section for environment variables."
@@ -96,40 +99,48 @@ class EnvironmentVariableJobEntry(JenkinsJobEntry):
 
     def __parse_environment_variables(self, config_file, verbose, debug):
         if debug is True:
-            print "Parsing " + config_file
+            print ("Parsing " + config_file)
          #Parse initial xml document
         xml_document = minidom.parse(config_file)
 
-        #Declare the node so it's in scope 
+        #Get Disabled Value (wtf XML syntax)
+        disabled_val = xml_document.getElementsByTagName("disabled")[0].firstChild.nodeValue
+
+        #Determine if it's disabled or not
+        if disabled_val == "True" or disabled_val == "true":
+            self.disabled = True
+        else:
+            self.disabled = False
+
+        #Declare the node so it's in scope
         environment_variables_node = None
 
         #Declare the dictionary so it's in scope
-        environment_variables_dict = dict() 
+        environment_variables_dict = dict()
 
         #Find the envinject node to get the environment variables
         for node in xml_document.getElementsByTagName("propertiesContent"):
             node_parent_parent = node.parentNode.parentNode
             if "envinject" not in str(node_parent_parent.attributes["plugin"].value):
                 continue
-            
+
             #The actual text inside this node is considered a "TEXT_NODE", so we extract that with the following statement
             environment_variables_string = " ".join(t.nodeValue for t in node.childNodes if t.nodeType == t.TEXT_NODE)
-       
+
             #Parse the properties into a dictionary
             for item in environment_variables_string.splitlines():
                 try:
                     key,val = item.split("=")
-                    environment_variables_dict[key] = val 
+                    environment_variables_dict[key] = val
                 except ValueError as e:
                     if debug:
-                        print "WARNING: Hit empty entry, continuing."
-                        print str(e)
+                        print ("WARNING: Hit empty entry, continuing.")
+                        print (str(e))
                     pass
 
         if len(environment_variables_dict) == 0:
             if debug is True:
-                print "ERROR: It appears that the job using " + config_file + " does not have a section for environment variables."
-            raise InvalidEntryError("Unable to find the envinject properties node")  
-        
-        self.environment_variables = environment_variables_dict
+                print ("ERROR: It appears that the job using " + config_file + " does not have a section for environment variables.")
+            raise InvalidEntryError("Unable to find the envinject properties node")
 
+        self.environment_variables = environment_variables_dict
