@@ -10,7 +10,7 @@ from botocore.client import Config
 from ..core import module
 from ..tools import file
 
-def find_files(bucket, prefix, case_sensitive = True, connection = None):
+def find_files(bucket, prefix, case_sensitive = True, connection = None, anonymous=True):
     """
     find_files will connect and return files found in bucket with prefix, all other keys are ignored.
 
@@ -20,11 +20,19 @@ def find_files(bucket, prefix, case_sensitive = True, connection = None):
     Will raise a DownloadError with an appropriate error message when unable to return a collection.
     """
 
+    s3client = None
     if connection is None:
-        #Get s3 connection
-        connection = get_s3_connection()
+        try:
+            connection = get_s3_connection(anonymous=False)
+            s3client = boto3.client('s3')
+        except:
+            connection = get_s3_connection(anonymous=True)
+            s3client = boto3.client('s3', config=Config(signature_version=UNSIGNED))
 
-    s3client = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+    if anonymous:
+        s3client = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+    else:
+        s3client = boto3.client('s3')
 
     #Verify we can connect to remote bucket
     verify_bucket(bucket, connection=connection)
@@ -108,7 +116,10 @@ def verify_bucket(bucket_name,connection = None):
     """
 
     if connection is None:
-        connection = get_s3_connection(anonymous=True)
+        try:
+            connection = get_s3_connection(anonymous=False)
+        except:
+            connection = get_s3_connection(anonymous=True)
 
     #Verify we can connect to the bucket
     try:
@@ -169,6 +180,7 @@ read access.
         prefix = None
         region = None
         source_url = None
+        anonymous = None
 
         def run(self,kwargs):
             if kwargs is not None and len(kwargs) > 0:
@@ -216,25 +228,28 @@ read access.
             #Determine if we're parsing a url
             if self.bucket_name is None:
                 self.bucket_name, self.prefix = parse_s3_url(self.source_url)
-
             #Connect to S3
-            s3 = get_s3_connection(anonymous=True)
-
-            #Verify bucket
-            verify_bucket(self.bucket_name, s3)
+            s3 = None
+            try:
+                s3 = get_s3_connection(anonymous=False)
+                #Verify bucket
+                verify_bucket(self.bucket_name, s3)
+                self.anonymous=False
+            except:
+                s3 = get_s3_connection(anonymous=True)
+                self.anonymous=True
+                #Verify bucket
+                verify_bucket(self.bucket_name, s3)
 
             #Stupid s3 can't provide a length to their collections...
             count = 0
-
             #Return value
             destination_files = list()
-
             #Loop through found files
-            for obj, checksum in find_files(self.bucket_name, self.prefix, case_sensitive = not self.case_insensitive, connection = s3):
+            for obj, checksum in find_files(self.bucket_name, self.prefix, case_sensitive = not self.case_insensitive, connection = s3, anonymous=self.anonymous):
                 if obj.key.endswith("/"):
                     continue
                 destination = self.destination_path
-
                 #Case: Provided path exists
                 if os.path.exists(destination):
                     #Case Provided path is a directory
