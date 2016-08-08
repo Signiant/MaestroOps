@@ -1,4 +1,4 @@
-import os, platform, re
+import os, platform, re, shutil
 
 def get_tree_size(path = '.'):
     """
@@ -69,8 +69,11 @@ def symlink(source, link_name):
         if csl(link_name, source, flags) == 0:
             raise ctypes.WinError()
 
-def purge(pattern, path):
+def purge(pattern, path, match_directories = False):
     for root, dirs, files in os.walk(path):
+        if match_directories is True:
+            for dir in filter(lambda x: re.match(pattern, x), dirs):
+                shutil.rmtree(os.path.join(root,dir))
         for file in filter(lambda x: re.match(pattern, x), files):
             os.remove(os.path.join(root, file))
 
