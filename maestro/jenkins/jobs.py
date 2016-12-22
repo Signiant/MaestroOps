@@ -62,6 +62,22 @@ class JenkinsJobEntry(object):
                 print ("Found build " + b  + " in Jenkins")
         return self.builds_in_jenkins
 
+def parse_build_into_environment_variable_job_entry(build_root):
+    env_file = os.path.abspath(os.path.join(build_root, "builds","lastSuccessfulBuild","injectedEnvVars.txt"))
+    entry = EnvironmentVariableJobEntry(build_root)
+    entry.environment_variables = dict()
+    try:
+        with open(env_file, "r") as f:
+            for line in f.readlines():
+                try:
+                    elements = line.strip().split("=")
+                    entry.environment_variables[elements[0]] = elements[1]
+                except IndexError:
+                    continue
+    except IOError as e:
+        pass
+        #print "Unable to open the environment variabiles file: " + str(env_file)
+    return entry
 
 class EnvironmentVariableJobEntry(JenkinsJobEntry):
     """
