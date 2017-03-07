@@ -115,6 +115,58 @@ def set_document(region_list, document_name, type, content, content_is_file=Fals
     return result
 
 
+def update_document_in_region(region, document_name, content, version=None, content_is_file=False, profile=None):
+    if not region:
+        _log_and_print_to_console("ERROR: You must supply a region", 'error')
+        return False
+
+    if not content:
+        _log_and_print_to_console("ERROR: You must supply content for the document", 'error')
+        return False
+
+    return_value = False
+
+    session = boto3.session.Session(profile_name=profile, region_name=region)
+    ssm = session.client('ssm')
+
+    if content_is_file and not os.path.exists(content):
+        _log_and_print_to_console("ERROR: File Value provided, but file does not exist", 'error')
+        return False
+
+    if content_is_file:
+        content = parse_file_into_json_string(content)
+
+    if not version:
+        version = '$LATEST'
+
+    try:
+        result = ssm.update_document(Name=document_name,
+                                     Content=content,
+                                     DocumentVersion=version)
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'DuplicateDocumentContent':
+            _log_and_print_to_console('Content is the same - no changes required', 'warn')
+            return True
+        else:
+            _log_and_print_to_console('Unexpected error: %s' % e, 'error')
+
+    if result:
+        if 'DocumentDescription' in result:
+            # TODO: Should probably check the Status and react accordingly, but for now, as long as we have a
+            #       DocumentDescription, assume all went well
+            return_value = True
+    return return_value
+
+
+def update_document(region_list, document_name, content, version=None, content_is_file=False, profile=None):
+    result = {}
+
+    for region in region_list:
+        logging.debug("Checking region: " + region)
+        result[region] = update_document_in_region(region, document_name, content, version, content_is_file, profile)
+    return result
+
+
 def delete_document_in_region(region, document_name, profile=None):
     if not region:
         _log_and_print_to_console("ERROR: You must supply a region", 'error')
@@ -168,10 +220,12 @@ if __name__ == "__main__":
     me_cmd_group = parser.add_mutually_exclusive_group(required=True)
     me_cmd_group.add_argument("--get", help="Perform a Get", action="store_true")
     me_cmd_group.add_argument("--set", help="Perform a Set", action="store_true")
+    me_cmd_group.add_argument("--update", help="Perform an Update", action="store_true")
     me_cmd_group.add_argument("--delete", help="Perform a Delete", action="store_true")
 
     parser.add_argument("--name", help="Document name", dest='name', required=True)
     parser.add_argument("--type", help="Document type", dest='type')
+    parser.add_argument("--version", help="Document version, if unspecified, '$LATEST' is used", dest='version')
 
     me_value_group = parser.add_mutually_exclusive_group()
     me_value_group.add_argument("--content", help="Document content. NOTE: should be a JSON string", dest='content')
@@ -213,6 +267,16 @@ if __name__ == "__main__":
         content_is_file = True if args.file_content else False
         content = args.file_content if args.file_content else args.content
         result = set_document(args.regions, args.name, args.type, content, content_is_file, args.profile)
+        for region in result:
+            print(region + ': ' + ("Success" if result[region] else "Failed"))
+
+    if args.update:
+        if not args.content and not args.file_content:
+            _log_and_print_to_console("Must supply CONTENT", "error")
+            sys.exit(1)
+        content_is_file = True if args.file_content else False
+        content = args.file_content if args.file_content else args.content
+        result = update_document(args.regions, args.name, content, args.version, content_is_file, args.profile)
         for region in result:
             print(region + ': ' + ("Success" if result[region] else "Failed"))
 
