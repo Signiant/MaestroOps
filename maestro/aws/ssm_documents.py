@@ -145,7 +145,6 @@ def update_document_in_region(region, document_name, content, version=None, cont
                                      DocumentVersion=version)
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'DuplicateDocumentContent':
-            _log_and_print_to_console('Content is the same - no changes required', 'warn')
             return True
         else:
             _log_and_print_to_console('Unexpected error: %s' % e, 'error')
