@@ -18,10 +18,6 @@ import sys
 import boto3, botocore
 
 
-def gen_except_response(code, msg):
-    return {'Error': {'Code':code, 'Message': msg}}
-
-
 def get_all_tables_in_region(region, profile=None):
     if not region:
         logging.error("You must supply a region")
@@ -108,38 +104,13 @@ def get_all_items_in_table(region_list, table_name, profile=None):
     return result
 
 
-def get_item_from_table_in_region(region, table_name,
-                                  item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                                  item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S',
-                                  profile=None):
+def get_item_from_table_in_region(region, table_name, key, profile=None):
     if not region:
         logging.error("You must supply a region")
         return False
 
-    if not item_partition_key_value:
-        logging.error("You must supply a partition key value")
-        return False
-
-    if not item_partition_key_name:
-        logging.error("You must supply a partition key name")
-        return False
-
-    if item_sort_key_value:
-        # If a sort_key_value is provided, need a sort_key_name
-        if not item_sort_key_name:
-            logging.error("Sort key value provided without a sort key")
-            code = 'ValidationException'
-            msg = 'Sort key value provided without sort key name'
-            raise botocore.exceptions.ClientError(gen_except_response(code, msg), 'GetItemFromTable')
-
     session = boto3.session.Session(profile_name=profile, region_name=region)
     dynamodb = session.client('dynamodb')
-
-    # Build the key dict
-    key={}
-    key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
-    if item_sort_key_value:
-        key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
 
     result = None
 
@@ -162,25 +133,27 @@ def get_item_from_table_in_region(region, table_name,
 
 def get_item_from_table(region_list, table_name,
                         item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                        item_sort_key_value=None, item_sort_key=None, item_sort_key_type='S',
+                        item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S',
                         profile=None):
     result = {}
+
+    # Build the key dict
+    key={}
+    key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
+    if item_sort_key_value:
+        key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
+
 
     for region in region_list:
         logging.debug("Checking region: " + region)
         if table_exists_in_region(region, table_name, profile):
-            result[region] = get_item_from_table_in_region(region, table_name,
-                                                item_partition_key_value, item_partition_key_name, item_partition_key_type,
-                                                item_sort_key_value, item_sort_key, item_sort_key_type, profile)
+            result[region] = get_item_from_table_in_region(region, table_name, key, profile)
         else:
             result[region] = None
     return result
 
 
-def put_item_in_table_in_region(region, table_name,
-                                item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                                item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S',
-                                dryrun=False, profile=None):
+def put_item_in_table_in_region(region, table_name, key, dryrun=False, profile=None):
     if not region:
         logging.error("You must supply a region")
         return False
@@ -194,25 +167,26 @@ def put_item_in_table_in_region(region, table_name,
 
 def put_item_in_table(region_list, table_name,
                       item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                      item_sort_key_value=None, item_sort_key=None, item_sort_key_type='S',
+                      item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S',
                       dryrun=False, profile=None):
     result = {}
+
+    # Build the key dict
+    key={}
+    key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
+    if item_sort_key_value:
+        key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
 
     for region in region_list:
         logging.debug("Checking region: " + region)
         if table_exists_in_region(region, table_name, profile):
-            result[region] = put_item_in_table_in_region(region, table_name,
-                                                item_partition_key_value, item_partition_key_name, item_partition_key_type,
-                                                item_sort_key_value, item_sort_key, item_sort_key_type, dryrun, profile)
+            result[region] = put_item_in_table_in_region(region, table_name, key, dryrun, profile)
         else:
             result[region] = False
     return result
 
 
-def update_item_in_table_in_region(region, table_name,
-                                   item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                                   item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S',
-                                   dryrun=False, profile=None):
+def update_item_in_table_in_region(region, table_name, key, dryrun=False, profile=None):
     if not region:
         logging.error("You must supply a region")
         return False
@@ -226,25 +200,26 @@ def update_item_in_table_in_region(region, table_name,
 
 def update_item_in_table(region_list, table_name,
                          item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                         item_sort_key_value=None, item_sort_key=None, item_sort_key_type='S',
+                         item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S',
                          dryrun=False, profile=None):
     result = {}
+
+    # Build the key dict
+    key={}
+    key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
+    if item_sort_key_value:
+        key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
 
     for region in region_list:
         logging.debug("Checking region: " + region)
         if table_exists_in_region(region, table_name, profile):
-            result[region] = update_item_in_table_in_region(region, table_name,
-                                                item_partition_key_value, item_partition_key_name, item_partition_key_type,
-                                                item_sort_key_value, item_sort_key, item_sort_key_type, dryrun, profile)
+            result[region] = update_item_in_table_in_region(region, table_name, key, dryrun, profile)
         else:
             result[region] = False
     return result
 
 
-def create_item_in_table_in_region(region, table_name,
-                                   item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                                   item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S',
-                                   dryrun=False, profile=None):
+def create_item_in_table_in_region(region, table_name, key, dryrun=False, profile=None):
     if not region:
         logging.error("You must supply a region")
         return False
@@ -258,16 +233,79 @@ def create_item_in_table_in_region(region, table_name,
 
 def create_item_in_table(region_list, table_name,
                          item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                         item_sort_key_value=None, item_sort_key=None, item_sort_key_type='S',
+                         item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S',
                          dryrun=False, profile=None):
     result = {}
+
+    # Build the key dict
+    key={}
+    key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
+    if item_sort_key_value:
+        key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
 
     for region in region_list:
         logging.debug("Checking region: " + region)
         if table_exists_in_region(region, table_name, profile):
-            result[region] = create_item_in_table_in_region(region, table_name,
-                                                item_partition_key_value, item_partition_key_name, item_partition_key_type,
-                                                item_sort_key_value, item_sort_key, item_sort_key_type, dryrun, profile)
+            result[region] = create_item_in_table_in_region(region, table_name, key, dryrun, profile)
+        else:
+            result[region] = False
+    return result
+
+
+def delete_item_in_table_in_region(region, table_name, key, dryrun=False, profile=None):
+    if not region:
+        logging.error("You must supply a region")
+        return False
+
+    result = False
+    # TODO: Implement this
+    logging.error("Not yet implemented")
+
+    return result
+
+
+def delete_item_in_table(region_list, table_name,
+                         item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
+                         item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S',
+                         dryrun=False, profile=None):
+    result = {}
+
+    # Build the key dict
+    key={}
+    key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
+    if item_sort_key_value:
+        key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
+
+    for region in region_list:
+        logging.debug("Checking region: " + region)
+        if table_exists_in_region(region, table_name, profile):
+            result[region] = create_item_in_table_in_region(region, table_name, key, dryrun, profile)
+        else:
+            result[region] = False
+    return result
+
+
+def item_exists_in_region(region, table_name, key, profile=None):
+    if get_item_from_table_in_region(region, table_name, key, profile):
+        return True
+    else:
+        return False
+
+
+def item_exists(region_list, table_name, item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
+                item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S', profile=None):
+    result = {}
+
+    # Build the key dict
+    key={}
+    key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
+    if item_sort_key_value:
+        key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
+
+    for region in region_list:
+        logging.debug("Checking region: " + region)
+        if table_exists_in_region(region, table_name, profile):
+            result[region] = item_exists_in_region(region, table_name, key, profile)
         else:
             result[region] = False
     return result
@@ -296,38 +334,6 @@ def create_table(region_list, table_name, dryrun=False, profile=None):
     return result
 
 
-def delete_item_in_table_in_region(region, table_name,
-                                   item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                                   item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S',
-                                   dryrun=False, profile=None):
-    if not region:
-        logging.error("You must supply a region")
-        return False
-
-    result = False
-    # TODO: Implement this
-    logging.error("Not yet implemented")
-
-    return result
-
-
-def delete_item_in_table(region_list, table_name,
-                         item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                         item_sort_key_value=None, item_sort_key=None, item_sort_key_type='S',
-                         dryrun=False, profile=None):
-    result = {}
-
-    for region in region_list:
-        logging.debug("Checking region: " + region)
-        if table_exists_in_region(region, table_name, profile):
-            result[region] = create_item_in_table_in_region(region, table_name,
-                                                item_partition_key_value, item_partition_key_name, item_partition_key_type,
-                                                item_sort_key_value, item_sort_key, item_sort_key_type, dryrun, profile)
-        else:
-            result[region] = False
-    return result
-
-
 def delete_table_in_region(region, table_name, dryrun=False, profile=None):
     if not region:
         logging.error("You must supply a region")
@@ -346,32 +352,6 @@ def delete_table(region_list, table_name, dryrun=False, profile=None):
         logging.debug("Checking region: " + region)
         if table_exists_in_region(region, table_name, profile):
             result[region] = delete_table_in_region(region, table_name, dryrun, profile)
-        else:
-            result[region] = False
-    return result
-
-
-def item_exists_in_region(region, table_name,
-                          item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                          item_sort_key_value=None, item_sort_key_name=None, item_sort_key_type='S', profile=None):
-    if get_item_from_table_in_region(region, table_name,
-                          item_partition_key_value, item_partition_key_name, item_partition_key_type,
-                          item_sort_key_value, item_sort_key_name, item_sort_key_type, profile):
-        return True
-    else:
-        return False
-
-
-def item_exists(region_list, table_name, item_partition_key_value, item_partition_key_name, item_partition_key_type='S',
-                item_sort_key_value=None, item_sort_key=None, item_sort_key_type='S', profile=None):
-    result = {}
-
-    for region in region_list:
-        logging.debug("Checking region: " + region)
-        if table_exists_in_region(region, table_name, profile):
-            result[region] = item_exists_in_region(region, table_name,
-                                                   item_partition_key_value, item_partition_key_name, item_partition_key_type,
-                                                   item_sort_key_value, item_sort_key, item_sort_key_type, profile)
         else:
             result[region] = False
     return result
@@ -443,10 +423,11 @@ if __name__ == "__main__":
         if not args.pkey:
             logger.error("Must supply a partition key")
             sys.exit(1)
-        if args.skey:
-            if not args.skey_value:
-                logger.error("Sort key name present, but no sort key value provided")
-                sys.exit(1)
+        if args.skey and not args.skey_value:
+            logger.error("Sort key name present, but no sort key value provided")
+            sys.exit(1)
+        if args.skey_value and not args.skey:
+            logging.warn("Sort key value present, but no sort key provided - will be ignored")
 
     # Item operations
     if args.get:
@@ -504,7 +485,7 @@ if __name__ == "__main__":
                                  args.profile)
         else:
             # Table exists
-            if args.item or args.pkey or args.skey or args.skey_value:
+            if args.pkey or args.skey or args.skey_value:
                 logging.warn("Ignoring extraneous information provided")
             result = table_exists(args.regions, args.table, args.profile, suppress_warning=True)
         for region in result:
