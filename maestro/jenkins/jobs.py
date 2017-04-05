@@ -119,12 +119,18 @@ class EnvironmentVariableJobEntry(JenkinsJobEntry):
          #Parse initial xml document
         xml_document = minidom.parse(config_file)
 
-        #Get Disabled Value (wtf XML syntax)
-        disabled_val = xml_document.getElementsByTagName("disabled")[0].firstChild.nodeValue
+        # Get Disabled Value (wtf XML syntax)
+        disabled_exists = xml_document.getElementsByTagName("disabled")
+        disabled_val = None
+        if disabled_exists:
+            disabled_val = xml_document.getElementsByTagName("disabled")[0].firstChild.nodeValue
 
         #Determine if it's disabled or not
-        if disabled_val == "True" or disabled_val == "true":
-            self.disabled = True
+        if disabled_val:
+            if disabled_val == "True" or disabled_val == "true":
+                self.disabled = True
+            else:
+                self.disabled = False
         else:
             self.disabled = False
 
