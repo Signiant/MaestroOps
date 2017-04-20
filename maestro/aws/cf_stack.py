@@ -17,7 +17,9 @@ import boto3, botocore
 import argparse
 import json, yaml
 import logging
+import time
 
+logging.getLogger("botocore").setLevel(logging.CRITICAL)
 
 def read_from_file(file_path):
     '''
@@ -51,6 +53,50 @@ def process_stack_params_arg(stack_params):
     return stack_parameters
 
 
+def query_stack_status_in_region(region, stack_name, profile=None):
+    session = boto3.session.Session(profile_name=profile, region_name=region)
+    cf_client = session.client('cloudformation')
+    result = None
+    try:
+        query = cf_client.describe_stacks(StackName=stack_name)
+        result = query['Stacks'][0]['StackStatus']
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'ValidationError':
+            # Stack doesn't exist - set create to True
+            result = 'DOES_NOT_EXIST'
+        else:
+            logging.error('Unexpected error: %s' % e)
+    return result
+
+
+def query_stack_status(region_list, stack_name, profile=None):
+    result = {}
+
+    for region in region_list:
+        logging.debug("Querying stack in region: " + region)
+        result[region] = query_stack_status_in_region(region, stack_name, profile=profile)
+    return result
+
+
+def delete_stack_in_region(region, stack_name, profile=None):
+    session = boto3.session.Session(profile_name=profile, region_name=region)
+    cf_client = session.client('cloudformation')
+    result = None
+    response = cf_client.delete_stack(StackName=stack_name)
+    if 'ResponseMetadata' in response and 'HTTPStatusCode' in response['ResponseMetadata']:
+        result = (response['ResponseMetadata']['HTTPStatusCode'] == 200)
+    return result
+
+
+def delete_stack(region_list, stack_name, profile=None):
+    result = {}
+
+    for region in region_list:
+        logging.debug("Deleting stack in region: " + region)
+        result[region] = delete_stack_in_region(region, stack_name, profile=profile)
+    return result
+
+
 def update_stack_in_region(region, stack_name, stack_params, template_body, new_stack=False, profile=None, dryrun=False):
     '''
     Update a stack in the given region
@@ -71,21 +117,8 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
 
     # TODO: create_change_set
 
-    # Check if the stack exists
-    try:
-        cf_client.describe_stacks(StackName=stack_name)
-        if new_stack:
-            logging.error('Cannot create - stack already exists - use update to update it')
-            return result
-    except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == 'ValidationError':
-            # Stack doesn't exist - set create to True
-            create = True
-        else:
-            logging.error('Unexpected error: %s' % e)
-
     # Validate the template
-    logging.debug("\nTemplate body:\n" + str(template_body))
+    logging.debug("Template body:\n" + str(template_body))
     try:
         cf_client.validate_template(TemplateBody=json.dumps(template_body))
     except botocore.exceptions.ClientError as e:
@@ -95,8 +128,27 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
             logging.error('Unexpected error: %s' % e)
         return result
 
-    logging.debug("\nStack params:\n" + str(stack_params))
+    logging.debug("Stack params:\n" + str(stack_params))
 
+    # Make sure stack can be created/updated
+    stack_status = query_stack_status_in_region(region, stack_name, profile)
+    if stack_status:
+        if new_stack:
+            if stack_status != 'DOES_NOT_EXIST':
+                logging.error('Cannot create - stack already exists - use update to update it')
+                return result
+        else:
+            if stack_status == 'DOES_NOT_EXIST':
+                # Stack doesn't exist
+                create = True
+            else:
+                if not stack_status.endswith('_COMPLETE'):
+                    logging.error('Stack is NOT in an updatable state')
+                    logging.error('Current statck status is %s' % stack_status)
+                    return result
+    else:
+        logging.error('Unable to get stack status')
+        return result
 
     if create:
         response = cf_client.create_stack(StackName=stack_name,
@@ -107,11 +159,52 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
                                           TemplateBody=json.dumps(template_body),
                                           Parameters=stack_params)
 
+    stack_arn = None
     if 'ResponseMetadata' in response and 'HTTPStatusCode' in response['ResponseMetadata'] \
             and response['ResponseMetadata']['HTTPStatusCode'] == 200:
         if 'StackId' in response:
-            result = response['StackId']
-    return result
+            stack_arn = response['StackId']
+
+    if stack_arn:
+        # Got a stack_arn - query the status of the stack creation
+        CURRENT_CHECK = 0
+        MAX_CHECKS = 20
+        SLEEP_SECONDS = 30
+        logging.info("Creating stack with name %s in region %s " % (stack_name, region))
+        logging.info("*** This may take up to %5d seconds..." % (MAX_CHECKS * SLEEP_SECONDS))
+        stack_status = "Unknown"
+        while CURRENT_CHECK <= MAX_CHECKS:
+            stack_status = query_stack_status_in_region(region, stack_name, profile)
+            if 'ROLLBACK' in stack_status:
+                logging.error('*** ' + ('create' if create else 'update') + ' failed')
+                logging.error('*** Waiting 5 minutes to make sure stack rolled back successfully')
+                time.sleep('300')
+                stack_status = query_stack_status_in_region(region, stack_name, profile)
+                if 'FAILED' in stack_status:
+                    logging.critical("*** Rollback has failed")
+                else:
+                    logging.info("*** Stack rolled back")
+
+                # TODO: get list of stack events
+                logging.info("***  Stack operation failed. Check Amazon console for list of events")
+                if create:
+                    # This was a new stack - remove the unstable stack
+                    logging.info("*** Removing unstable stack ...")
+                    delete_stack_in_region(region, stack_name, profile)
+                result = False
+                break
+            elif 'COMPLETE' in stack_status:
+                logging.info('*** ' + ('create' if create else 'update') + ' completed successfully')
+                break
+            else:
+                logging.info("Current stack status: %s" % stack_status)
+            CURRENT_CHECK += 1
+            time.sleep(SLEEP_SECONDS)
+        if CURRENT_CHECK > MAX_CHECKS and 'COMPLETE' not in stack_status:
+            logging.error("*** Stack has not yet stabilized in %5d seconds - check the cloudformation console or the ECS events tab for more detail" % (MAX_CHECKS * SLEEP_SECONDS))
+        else:
+            result = True
+        return result
 
 
 def update_stack(region_list, stack_name, stack_params, template_body, profile=None, dryrun=False):
@@ -356,8 +449,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Script to view/modify CloudFormation Stacks')
 
-    parser.add_argument("--create-stack", help="create stack in given region(s)", dest='create_stack', required=False)
-    parser.add_argument("--update-stack", help="update stack in given region(s)", dest='update_stack', required=False)
+    me_cmd_group = parser.add_mutually_exclusive_group(required=True)
+    me_cmd_group.add_argument("--query-status", help="query stack status in given region(s)", dest='query_stack', metavar='STACK_NAME', required=False)
+    me_cmd_group.add_argument("--delete-stack", help="delete stack in given region(s)", dest='delete_stack', metavar='STACK_NAME', required=False)
+    me_cmd_group.add_argument("--create-stack", help="create stack in given region(s)", dest='create_stack', metavar='STACK_NAME', required=False)
+    me_cmd_group.add_argument("--update-stack", help="update stack in given region(s)", dest='update_stack', metavar='STACK_NAME', required=False)
+
     parser.add_argument("--stack-params", help="space separated list of key=value stack parameters", dest='stack_params',
                         nargs='+', required=False)
     parser.add_argument("--template-body", help="CFN template body (as json/yaml - preface with file:// if file)", dest='template_body',
@@ -407,7 +504,7 @@ if __name__ == "__main__":
     logging.debug("INIT")
 
     if args.dryrun:
-        logging.info("***** Dryrun selected - no changes will be made *****\n")
+        logging.info("***** Dryrun selected - no changes will be made *****")
 
     if args.regions:
         logging.info("Regions: " + str(args.regions))
@@ -441,11 +538,17 @@ if __name__ == "__main__":
 
         if not args.dryrun:
             if result:
-                logging.info("Create/Update results:\n")
+                logging.info("Create/Update results:")
                 for region in result:
-                    logging.info(region + ': ' + ("Stack ARN: " + result[region] if result[region] else "Failed"))
+                    logging.info('   ' + region + ': ' + ("Success" if result[region] else "Failed"))
             else:
-                logging.error("Create/Update failed.\n")
+                logging.error("Create/Update failed.")
+
+    elif args.delete_stack:
+        result = delete_stack(args.regions, args.delete_stack, args.profile)
+
+    elif args.query_stack:
+        result = query_stack_status(args.regions, args.query_stack, args.profile)
 
     elif args.list:
         if not args.param:
@@ -465,9 +568,9 @@ if __name__ == "__main__":
                                                           args.param, args.profile, args.dryrun, args.force)
         if not args.dryrun:
             if update_status:
-                logging.info("\nStack Parameter Update Succeeded")
+                logging.info("Stack Parameter Update Succeeded")
             else:
-                logging.error("\nStack Parameter Update Failed")
+                logging.error("Stack Parameter Update Failed")
 
     elif args.update_all:
         if len(args.regions) > 1:
@@ -479,6 +582,6 @@ if __name__ == "__main__":
         update_status = update_all_stacks_with_given_parameter(args.regions, args.update_all[0], args.update_all[1],
                                                                args.param, args.profile, args.dryrun, args.force)
         if not args.dryrun and update_status:
-            logging.info("\n\nUPDATE STATUS:")
+            logging.info("UPDATE STATUS:")
             for stack in update_status:
                 logging.info(stack + ": " + ('Succeeded' if update_status[stack] else 'Failed'))
