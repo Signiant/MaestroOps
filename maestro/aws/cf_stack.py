@@ -20,6 +20,11 @@ import logging
 
 
 def read_from_file(file_path):
+    '''
+    Read from a file and return a dict
+    :param file_path: path to file
+    :return: dict
+    '''
     template_body = {}
     if os.path.exists(file_path):
         with open(file_path, 'r') as stream:
@@ -34,7 +39,11 @@ def read_from_file(file_path):
 
 
 def process_stack_params_arg(stack_params):
-    # stack_params should be a list of key,value,type groups
+    '''
+    stack_params should be a list of key=value pairs
+    :param stack_params: list of 'key=value' strings
+    :return: list of dicts
+    '''
     stack_parameters=[]
     for param in stack_params:
         key,value = param.split('=')
@@ -45,7 +54,7 @@ def process_stack_params_arg(stack_params):
 def update_stack_in_region(region, stack_name, stack_params, template_body, new_stack=False, profile=None, dryrun=False):
     '''
     Update a stack in the given region
-    :param region: region to create the stack in
+    :param region: region to create/update the stack in
     :param stack_name: name of the stack
     :param stack_params: stack parameters (list of dicts)
     :param template_body: body of the template as a dict
@@ -107,7 +116,7 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
 
 def update_stack(region_list, stack_name, stack_params, template_body, profile=None, dryrun=False):
     '''
-    Create a stack in the given regions
+    Create/Update a stack in the given regions
     :param region_list: list of regions to create the stack in
     :param stack_name: name of the stack
     :param stack_params: stack parameters (list of dicts)
@@ -377,7 +386,6 @@ if __name__ == "__main__":
     log_level = logging.INFO
 
     if args.verbose:
-        print("Verbose logging selected")
         log_level = logging.DEBUG
 
     logger = logging.getLogger()
