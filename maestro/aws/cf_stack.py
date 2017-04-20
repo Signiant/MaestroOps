@@ -12,21 +12,133 @@ Note:
         AWS_SECRET_ACCESS_KEY
 """
 
-import sys
+import sys, os
 import boto3, botocore
 import argparse
+import json, yaml
 import logging
 
 
-def _log_and_print_to_console(msg, log_level='info'):
-    """
-    Print a message to the console and log it to a file
-    :param msg: the message to print and log
-    :param log_level: the logging level for the mesage
-    """
-    log_func = {'info': logging.info, 'warn': logging.warn, 'error': logging.error}
-    print(msg)
-    log_func[log_level.lower()](msg)
+def read_from_file(file_path):
+    template_body = {}
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as stream:
+            if file_path.endswith('.yaml'):
+                template_body = yaml.load(stream, yaml.SafeLoader)
+            else:
+                # Assume json if not yaml
+                template_body = json.load(stream)
+    else:
+        logging.error('given file: ' + file_path + ' does not exist')
+    return template_body
+
+
+def process_stack_params_arg(stack_params):
+    # stack_params should be a list of key,value,type groups
+    stack_parameters=[]
+    for param in stack_params:
+        key,value = param.split('=')
+        stack_parameters.append({'ParameterKey': key, 'ParameterValue': value})
+    return stack_parameters
+
+
+def update_stack_in_region(region, stack_name, stack_params, template_body, new_stack=False, profile=None, dryrun=False):
+    '''
+    Update a stack in the given region
+    :param region: region to create the stack in
+    :param stack_name: name of the stack
+    :param stack_params: stack parameters (list of dicts)
+    :param template_body: body of the template as a dict
+    :return: ARN of the stack, if created or None
+    '''
+    session = boto3.session.Session(profile_name=profile, region_name=region)
+    cf_client = session.client('cloudformation')
+
+    result = None
+
+    create = False
+    if new_stack:
+        create = True
+
+    # TODO: create_change_set
+
+    # Check if the stack exists
+    try:
+        cf_client.describe_stacks(StackName=stack_name)
+        if new_stack:
+            logging.error('Cannot create - stack already exists - use update to update it')
+            return result
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'ValidationError':
+            # Stack doesn't exist - set create to True
+            create = True
+        else:
+            logging.error('Unexpected error: %s' % e)
+
+    # Validate the template
+    logging.debug("\nTemplate body:\n" + str(template_body))
+    try:
+        cf_client.validate_template(TemplateBody=json.dumps(template_body))
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'ValidationError':
+            logging.error('Validation of given template failed')
+        else:
+            logging.error('Unexpected error: %s' % e)
+        return result
+
+    logging.debug("\nStack params:\n" + str(stack_params))
+
+
+    if create:
+        response = cf_client.create_stack(StackName=stack_name,
+                                          TemplateBody=json.dumps(template_body),
+                                          Parameters=stack_params)
+    else:
+        response = cf_client.update_stack(StackName=stack_name,
+                                          TemplateBody=json.dumps(template_body),
+                                          Parameters=stack_params)
+
+    if 'ResponseMetadata' in response and 'HTTPStatusCode' in response['ResponseMetadata'] \
+            and response['ResponseMetadata']['HTTPStatusCode'] == 200:
+        if 'StackId' in response:
+            result = response['StackId']
+    return result
+
+
+def update_stack(region_list, stack_name, stack_params, template_body, profile=None, dryrun=False):
+    '''
+    Create a stack in the given regions
+    :param region_list: list of regions to create the stack in
+    :param stack_name: name of the stack
+    :param stack_params: stack parameters (list of dicts)
+    :param template_body: body of the template as a dict
+    :return: ARN of the stack(s) or None if not created
+    '''
+    result = {}
+
+    for region in region_list:
+        logging.debug("Creating stack in region: " + region)
+        result[region] = update_stack_in_region(region, stack_name, stack_params, template_body,
+                                                profile=profile, dryrun=dryrun)
+    return result
+
+
+def create_stack(region_list, stack_name, stack_params, template_body, profile=None, dryrun=False):
+    '''
+    Create a stack in the given regions
+    :param region_list: list of regions to create the stack in
+    :param stack_name: name of the stack
+    :param stack_params: stack parameters (list of dicts)
+    :param template_body: body of the template as a dict
+    :return: ARN of the stack(s) or None if not created
+    '''
+    result = {}
+
+    for region in region_list:
+        logging.debug("Creating stack in region: " + region)
+        result[region] = update_stack_in_region(region, stack_name, stack_params, template_body, new_stack=True,
+                                                profile=profile, dryrun=dryrun)
+    return result
 
 
 def _update_stack_parameters(region, stack_id, parameters, profile=None, dryrun=False):
@@ -39,15 +151,15 @@ def _update_stack_parameters(region, stack_id, parameters, profile=None, dryrun=
     :return: json object
     """
     if not region:
-        _log_and_print_to_console("ERROR: You must supply a region to scan", 'error')
+        logging.error("ERROR: You must supply a region to scan")
         return None
     else:
-        _log_and_print_to_console('Updating Stack: ' + stack_id)
+        logging.info('Updating Stack: ' + stack_id)
         for param in parameters:
             if 'PreviousValue' in param:
-                _log_and_print_to_console('   ' + param['ParameterKey'])
-                _log_and_print_to_console('      OLD: ' + param['PreviousValue'])
-                _log_and_print_to_console('      NEW: ' + param['ParameterValue'])
+                logging.info('   ' + param['ParameterKey'])
+                logging.info('      OLD: ' + param['PreviousValue'])
+                logging.info('      NEW: ' + param['ParameterValue'])
                 del param['PreviousValue']
         if not dryrun:
             stack = get_stack_with_name_or_id(region, stack_id)
@@ -62,9 +174,9 @@ def _update_stack_parameters(region, stack_id, parameters, profile=None, dryrun=
             except botocore.exceptions.ClientError as e:
                 if e.response['Error']['Code'] == 'ValidationError' and 'No updates are to be performed' in \
                         e.response['Error']['Message']:
-                    _log_and_print_to_console("   ERROR: New value matches Old value - no update required", 'error')
+                    logging.error("   ERROR: New value matches Old value - no update required")
                 else:
-                    _log_and_print_to_console('Unexpected error: %s' % e)
+                    logging.error('Unexpected error: %s' % e)
     return False
 
 
@@ -77,7 +189,7 @@ def get_stacks_with_given_parameter(region, parameter_list, profile=None):
     """
     stacks_with_given_parameter = []
     if not region:
-        _log_and_print_to_console("ERROR: You must supply a region to scan", 'error')
+        logging.error("ERROR: You must supply a region to scan")
         return None
     else:
         session = boto3.session.Session(profile_name=profile, region_name=region)
@@ -104,7 +216,7 @@ def get_stack_with_name_or_id(region, stack_id, profile=None):
     """
     stack = {}
     if not region:
-        _log_and_print_to_console("ERROR: You must supply a region to scan", 'error')
+        logging.error("ERROR: You must supply a region to scan")
         return None
     else:
         session = boto3.session.Session(profile_name=profile, region_name=region)
@@ -114,7 +226,7 @@ def get_stack_with_name_or_id(region, stack_id, profile=None):
         if "Stacks" in cf_data:
             if len(cf_data["Stacks"]) > 1:
                 # Problem - mutliple stacks with this name??
-                _log_and_print_to_console("Error: Multiple stacks with given name", 'error')
+                logging.error("Error: Multiple stacks with given name")
             else:
                 stack = cf_data['Stacks'][0]
     return stack
@@ -141,9 +253,9 @@ def get_new_parameter_list_for_update(stack, expected_value, new_value, paramete
                 new_param['ParameterValue'] = new_value
                 new_param['PreviousValue'] = parameter['ParameterValue']
             else:
-                _log_and_print_to_console(
+                logging.warn(
                     "Unexpected value detected - Stack will NOT be updated\n   Stack: " + stack[
-                        'StackName'] + "\n   Existing value: " + parameter['ParameterValue'], 'warn')
+                        'StackName'] + "\n   Existing value: " + parameter['ParameterValue'])
                 new_param['UsePreviousValue'] = True
         else:
             new_param['UsePreviousValue'] = True
@@ -158,9 +270,9 @@ def list_stacks_with_given_parameter_in_region(region, parameter_list, profile=N
     :param parameter_list: list of possible parameter names
     """
     if not region:
-        _log_and_print_to_console("ERROR: You must supply a region to scan", 'error')
+        logging.error("You must supply a region to scan")
     else:
-        _log_and_print_to_console(
+        logging.info(
             "\nCloudFormation Stacks in region: " + region + " with at least one of the following parameters: " + ', '.join(
                 parameter_list))
         stacks_with_given_parameter = get_stacks_with_given_parameter(region, parameter_list, profile=profile)
@@ -168,13 +280,13 @@ def list_stacks_with_given_parameter_in_region(region, parameter_list, profile=N
             for stack in stacks_with_given_parameter:
                 for parameter in stack["Parameters"]:
                     if parameter['ParameterKey'] in parameter_list:
-                        _log_and_print_to_console(
+                        logging.info(
                             "Stack Name: " + stack["StackName"] + "\n   " + parameter['ParameterKey'] + ": " +
                             parameter[
                                 "ParameterValue"])
                         break
         else:
-            _log_and_print_to_console("None")
+            logging.info("None")
 
 
 def list_stacks_with_given_parameter(region_list, parameter_list, profile=None):
@@ -187,8 +299,8 @@ def list_stacks_with_given_parameter(region_list, parameter_list, profile=None):
         list_stacks_with_given_parameter_in_region(region, parameter_list, profile=profile)
 
 
-def update_stack_with_given_parameter(region, stack_name, expected_value, new_value, parameter_to_change, profile=None, dryrun=False,
-                                      force=False):
+def update_stack_with_given_parameter(region, stack_name, expected_value, new_value, parameter_to_change, profile=None,
+                                      dryrun=False, force=False):
     """
     Update the given parameter in the given stack (for the given region) to a new value, provided
     the existing value contains the expected_value
@@ -207,8 +319,8 @@ def update_stack_with_given_parameter(region, stack_name, expected_value, new_va
         return _update_stack_parameters(region, stack["StackId"], new_parameter_list, profile=profile, dryrun=dryrun)
 
 
-def update_all_stacks_with_given_parameter(region, expected_value, new_value, parameter_to_change, profile=None, dryrun=False,
-                                           force=False):
+def update_all_stacks_with_given_parameter(region, expected_value, new_value, parameter_to_change, profile=None,
+                                           dryrun=False, force=False):
     """
     Update the given parameter in all stacks (for the given region) to a new value, provided
     the existing value contains the expected_value
@@ -218,7 +330,7 @@ def update_all_stacks_with_given_parameter(region, expected_value, new_value, pa
     :param parameter_to_change: list of possible names for the parameter
     :param dryrun: if true, no changes are made
     """
-    _log_and_print_to_console('\nUpdating all matching Stacks in region: ' + region)
+    logging.info('\nUpdating all matching Stacks in region: ' + region)
     update_status = {}
     for stack in get_stacks_with_given_parameter(region, parameter_to_change, profile=profile):
         update_required, new_parameter_list = get_new_parameter_list_for_update(stack, expected_value, new_value,
@@ -232,31 +344,34 @@ def update_all_stacks_with_given_parameter(region, expected_value, new_value, pa
 
 if __name__ == "__main__":
 
-    logging.basicConfig(filename='cf_stack.log', format='%(asctime)s - %(levelname)7s : %(message)s',
-                        level=logging.INFO)
-
     parser = argparse.ArgumentParser(
-        description='Script to view/modify a Parameter in CloudFormation Stacks')
+        description='Script to view/modify CloudFormation Stacks')
 
-    parser.add_argument("--verbose", help="Turn on DEBUG logging", action='store_true', required=False)
-    parser.add_argument("--param", help="space separated list of possible names for the parameter", dest='param',
-                        nargs='+', required=True)
+    parser.add_argument("--create-stack", help="create stack in given region(s)", dest='create_stack', required=False)
+    parser.add_argument("--update-stack", help="update stack in given region(s)", dest='update_stack', required=False)
+    parser.add_argument("--stack-params", help="space separated list of key=value stack parameters", dest='stack_params',
+                        nargs='+', required=False)
+    parser.add_argument("--template-body", help="CFN template body (as json/yaml - preface with file:// if file)", dest='template_body',
+                        required=False)
     parser.add_argument("--list",
-                        help="List all stacks in a given region that have a given parameter",
+                        help="List all stacks in given region(s) that have a given parameter",
                         dest='list', action='store_true', required=False)
-    parser.add_argument("--regions", help="Specify regions (space separated)", dest='regions', required=True)
-    parser.add_argument("--profile",
-                        help="The name of an aws cli profile to use.", dest='profile', required=False)
     parser.add_argument("--update",
                         help="Update Parameter to new value for given stack in the specified region - must supply expected existing value and new value. STACK_ID can be the name or ID of the Stack",
                         dest='update', nargs=3, metavar=('STACK_ID', 'EXPECTED_VALUE', 'NEW_VALUE'), required=False)
+    parser.add_argument("--param", help="space separated list of possible names for the parameter", dest='param',
+                        nargs='+', required=False)
     parser.add_argument("--update-all",
                         help="Update Parameter to new value for all stacks in the specified region - must supply expected existing value and new value",
                         dest='update_all', nargs=2, metavar=('EXPECTED_VALUE', 'NEW_VALUE'), required=False)
+    parser.add_argument("--regions", help="Specify regions (space separated)", dest='regions', nargs='+', required=True)
+    parser.add_argument("--profile",
+                        help="The name of an aws cli profile to use.", dest='profile', required=False)
     parser.add_argument("--dryrun", help="Do a dryrun - no changes will be performed", dest='dryrun',
                         action='store_true', default=False, required=False)
     parser.add_argument("--force", help="Force an update, even if expected value doesn't match", dest='force',
                         action='store_true', default=False, required=False)
+    parser.add_argument("--verbose", help="Turn on DEBUG logging", action='store_true', required=False)
     args = parser.parse_args()
 
     log_level = logging.INFO
@@ -265,42 +380,97 @@ if __name__ == "__main__":
         print("Verbose logging selected")
         log_level = logging.DEBUG
 
-    logging.info("INIT")
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    # create file handler which logs even debug messages
+    fh = logging.FileHandler('cf_stack.log')
+    fh.setLevel(logging.DEBUG)
+    # create console handler using level set in log_level
+    ch = logging.StreamHandler()
+    ch.setLevel(log_level)
+    console_formatter = logging.Formatter('%(levelname)8s: %(message)s')
+    ch.setFormatter(console_formatter)
+    file_formatter = logging.Formatter('%(asctime)s - %(levelname)8s: %(message)s')
+    fh.setFormatter(file_formatter)
+    # Add the handlers to the logger
+    logger.addHandler(fh)
+    logger.addHandler(ch)
 
-    print('')
+    logging.debug("INIT")
 
     if args.dryrun:
-        _log_and_print_to_console("***** Dryrun selected - no changes will be made *****\n")
-
-    _log_and_print_to_console("Searching for Stacks with a Parameter with name(s): " + ' '.join(args.param))
+        logging.info("***** Dryrun selected - no changes will be made *****\n")
 
     if args.regions:
-        _log_and_print_to_console("Regions: " + args.regions)
+        logging.info("Regions: " + str(args.regions))
 
-    if args.list:
+    if not args.param:
+        if args.list or args.update or args.update_all:
+            logging.critical("Must supply a parameter")
+            sys.exit(1)
+
+    if args.create_stack or args.update_stack:
+        if not args.template_body:
+            logging.critical("Must supply a template body")
+            sys.exit(1)
+
+        if args.template_body.startswith('file://'):
+            # Template is a file - read it in
+            file_path = args.template_body[7:]
+            template_body = read_from_file(file_path)
+            if not template_body:
+                sys.exit(1)
+        else:
+            template_body = args.template_body
+
+        stack_params = process_stack_params_arg(args.stack_params)
+
+        result = None
+        if args.create_stack:
+            result = create_stack(args.regions, args.create_stack, stack_params, template_body, args.profile, args.dryrun)
+        elif args.update_stack:
+            result = update_stack(args.regions, args.update_stack, stack_params, template_body, args.profile, args.dryrun)
+
+        if not args.dryrun:
+            if result:
+                logging.info("Create/Update results:\n")
+                for region in result:
+                    logging.info(region + ': ' + ("Stack ARN: " + result[region] if result[region] else "Failed"))
+            else:
+                logging.error("Create/Update failed.\n")
+
+    elif args.list:
+        if not args.param:
+            logging.critical("Must supply a parameter name")
+            sys.exit(1)
+        logging.info("Searching for Stacks with a Parameter with name(s): " + ' '.join(args.param))
         list_stacks_with_given_parameter(args.regions, args.param, args.profile)
 
-    if args.update:
+    elif args.update:
         if 'all' in args.regions:
-            _log_and_print_to_console("Only one region can be specified with update", "error")
+            logging.critical("Only one region can be specified with update", "error")
+            sys.exit(1)
+        if not args.param:
+            logging.critical("Must supply a parameter name")
             sys.exit(1)
         update_status = update_stack_with_given_parameter(args.regions, args.update[0], args.update[1], args.update[2],
                                                           args.param, args.profile, args.dryrun, args.force)
         if not args.dryrun:
             if update_status:
-                _log_and_print_to_console("\nStack Parameter Update Succeeded")
+                logging.info("\nStack Parameter Update Succeeded")
             else:
-                _log_and_print_to_console("\nStack Parameter Update Failed")
+                logging.error("\nStack Parameter Update Failed")
 
-    if args.update_all:
+    elif args.update_all:
         if len(args.regions) > 1:
-            _log_and_print_to_console("Only one region can be specified with update", "error")
+            logging.critical("Only one region can be specified with update", "error")
+            sys.exit(1)
+        if not args.param:
+            logging.critical("Must supply a parameter name")
             sys.exit(1)
         update_status = update_all_stacks_with_given_parameter(args.regions, args.update_all[0], args.update_all[1],
                                                                args.param, args.profile, args.dryrun, args.force)
         if not args.dryrun and update_status:
-            _log_and_print_to_console("\n\nUPDATE STATUS:")
+            logging.info("\n\nUPDATE STATUS:")
             for stack in update_status:
-                _log_and_print_to_console(stack + ": " + ('Succeeded' if update_status[stack] else 'Failed'))
-
-    _log_and_print_to_console('\nCOMPLETE')
+                logging.info(stack + ": " + ('Succeeded' if update_status[stack] else 'Failed'))
