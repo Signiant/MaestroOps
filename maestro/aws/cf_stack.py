@@ -150,20 +150,32 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
         logging.error('Unable to get stack status')
         return result
 
+    stack_arn = None
+
     if create:
         response = cf_client.create_stack(StackName=stack_name,
                                           TemplateBody=json.dumps(template_body),
                                           Parameters=stack_params)
+        if 'ResponseMetadata' in response and 'HTTPStatusCode' in response['ResponseMetadata'] \
+                and response['ResponseMetadata']['HTTPStatusCode'] == 200:
+            if 'StackId' in response:
+                stack_arn = response['StackId']
     else:
-        response = cf_client.update_stack(StackName=stack_name,
-                                          TemplateBody=json.dumps(template_body),
-                                          Parameters=stack_params)
-
-    stack_arn = None
-    if 'ResponseMetadata' in response and 'HTTPStatusCode' in response['ResponseMetadata'] \
-            and response['ResponseMetadata']['HTTPStatusCode'] == 200:
-        if 'StackId' in response:
-            stack_arn = response['StackId']
+        try:
+            response = cf_client.update_stack(StackName=stack_name,
+                                              TemplateBody=json.dumps(template_body),
+                                              Parameters=stack_params)
+            if 'ResponseMetadata' in response and 'HTTPStatusCode' in response['ResponseMetadata'] \
+                    and response['ResponseMetadata']['HTTPStatusCode'] == 200:
+                if 'StackId' in response:
+                    stack_arn = response['StackId']
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'ValidationError' and 'No updates are to be performed' in e.response['Error']['Message']:
+                logging.warn('No changes detected')
+                result = True
+            else:
+                logging.error('Unexpected error: %s' % e)
+                return result
 
     if stack_arn:
         # Got a stack_arn - query the status of the stack creation
@@ -178,7 +190,7 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
             if 'ROLLBACK' in stack_status:
                 logging.error('*** ' + ('create' if create else 'update') + ' failed')
                 logging.error('*** Waiting 5 minutes to make sure stack rolled back successfully')
-                time.sleep('300')
+                time.sleep(300)
                 stack_status = query_stack_status_in_region(region, stack_name, profile)
                 if 'FAILED' in stack_status:
                     logging.critical("*** Rollback has failed")
@@ -204,7 +216,7 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
             logging.error("*** Stack has not yet stabilized in %5d seconds - check the cloudformation console or the ECS events tab for more detail" % (MAX_CHECKS * SLEEP_SECONDS))
         else:
             result = True
-        return result
+    return result
 
 
 def update_stack(region_list, stack_name, stack_params, template_body, profile=None, dryrun=False):
