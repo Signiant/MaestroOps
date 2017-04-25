@@ -78,6 +78,36 @@ def query_stack_status(region_list, stack_name, profile=None):
     return result
 
 
+def get_stack_events_in_region(region, stack_name, profile=None):
+    session = boto3.session.Session(profile_name=profile, region_name=region)
+    cf_client = session.client('cloudformation')
+    events = []
+    try:
+        current_event_set = cf_client.describe_stack_events(StackName=stack_name)
+        events.extend(current_event_set['StackEvents'])
+        next_token = None
+        if 'NextToken' in current_event_set:
+            next_token = current_event_set['NextToken']
+        while next_token:
+            current_event_set = cf_client.describe_stack_events(StackName=stack_name, NextToken=next_token)
+            events.extend(current_event_set['StackEvents'])
+            next_token = None
+            if 'NextToken' in current_event_set:
+                next_token = current_event_set['NextToken']
+    except botocore.exceptions.ClientError as e:
+        logging.error("Connection error to AWS. Check your credentials. Error: %s" % e)
+    return events
+
+
+def get_stack_events(region_list, stack_name, profile=None):
+    result = {}
+
+    for region in region_list:
+        logging.debug("Querying stack in region: " + region)
+        result[region] = query_stack_status_in_region(region, stack_name, profile=profile)
+    return result
+
+
 def delete_stack_in_region(region, stack_name, profile=None):
     session = boto3.session.Session(profile_name=profile, region_name=region)
     cf_client = session.client('cloudformation')
@@ -198,7 +228,9 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
                     logging.info("*** Stack rolled back")
 
                 # TODO: get list of stack events
-                logging.info("***  Stack operation failed. Check Amazon console for list of events")
+                logging.error("***  Stack operation failed.")
+                events = get_stack_events_in_region(region, stack_name, profile)
+                logging.error("%s" % str(events))
                 if create:
                     # This was a new stack - remove the unstable stack
                     logging.info("*** Removing unstable stack ...")
@@ -462,26 +494,26 @@ if __name__ == "__main__":
         description='Script to view/modify CloudFormation Stacks')
 
     me_cmd_group = parser.add_mutually_exclusive_group(required=True)
-    me_cmd_group.add_argument("--query-status", help="query stack status in given region(s)", dest='query_stack', metavar='STACK_NAME', required=False)
-    me_cmd_group.add_argument("--delete-stack", help="delete stack in given region(s)", dest='delete_stack', metavar='STACK_NAME', required=False)
-    me_cmd_group.add_argument("--create-stack", help="create stack in given region(s)", dest='create_stack', metavar='STACK_NAME', required=False)
-    me_cmd_group.add_argument("--update-stack", help="update stack in given region(s)", dest='update_stack', metavar='STACK_NAME', required=False)
+    me_cmd_group.add_argument("--query-status", help="query stack status in given region(s)", dest='query_stack', metavar='STACK_NAME')
+    me_cmd_group.add_argument("--delete-stack", help="delete stack in given region(s)", dest='delete_stack', metavar='STACK_NAME')
+    me_cmd_group.add_argument("--create-stack", help="create stack in given region(s)", dest='create_stack', metavar='STACK_NAME')
+    me_cmd_group.add_argument("--update-stack", help="update stack in given region(s)", dest='update_stack', metavar='STACK_NAME')
+    me_cmd_group.add_argument("--update",
+                        help="Update Parameter to new value for given stack in the specified region - must supply expected existing value and new value. STACK_ID can be the name or ID of the Stack",
+                        dest='update', nargs=3, metavar=('STACK_ID', 'EXPECTED_VALUE', 'NEW_VALUE'))
+    me_cmd_group.add_argument("--update-all",
+                        help="Update Parameter to new value for all stacks in the specified region - must supply expected existing value and new value",
+                        dest='update_all', nargs=2, metavar=('EXPECTED_VALUE', 'NEW_VALUE'))
+    me_cmd_group.add_argument("--list",
+                        help="List all stacks in given region(s) that have a given parameter",
+                        dest='list', action='store_true')
 
     parser.add_argument("--stack-params", help="space separated list of key=value stack parameters", dest='stack_params',
                         nargs='+', required=False)
     parser.add_argument("--template-body", help="CFN template body (as json/yaml - preface with file:// if file)", dest='template_body',
                         required=False)
-    parser.add_argument("--list",
-                        help="List all stacks in given region(s) that have a given parameter",
-                        dest='list', action='store_true', required=False)
-    parser.add_argument("--update",
-                        help="Update Parameter to new value for given stack in the specified region - must supply expected existing value and new value. STACK_ID can be the name or ID of the Stack",
-                        dest='update', nargs=3, metavar=('STACK_ID', 'EXPECTED_VALUE', 'NEW_VALUE'), required=False)
     parser.add_argument("--param", help="space separated list of possible names for the parameter", dest='param',
                         nargs='+', required=False)
-    parser.add_argument("--update-all",
-                        help="Update Parameter to new value for all stacks in the specified region - must supply expected existing value and new value",
-                        dest='update_all', nargs=2, metavar=('EXPECTED_VALUE', 'NEW_VALUE'), required=False)
     parser.add_argument("--regions", help="Specify regions (space separated)", dest='regions', nargs='+', required=True)
     parser.add_argument("--profile",
                         help="The name of an aws cli profile to use.", dest='profile', required=False)
