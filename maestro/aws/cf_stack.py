@@ -210,7 +210,7 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
     if stack_arn:
         # Got a stack_arn - query the status of the stack creation
         CURRENT_CHECK = 0
-        MAX_CHECKS = 20
+        MAX_CHECKS = 60
         SLEEP_SECONDS = 30
         logging.info("Creating stack with name %s in region %s " % (stack_name, region))
         logging.info("*** This may take up to %5d seconds..." % (MAX_CHECKS * SLEEP_SECONDS))
@@ -227,10 +227,14 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
                 else:
                     logging.info("*** Stack rolled back")
 
-                # TODO: get list of stack events
                 logging.error("***  Stack operation failed.")
                 events = get_stack_events_in_region(region, stack_name, profile)
-                logging.error("%s" % str(events))
+                stack_events=""
+                for event in events:
+                    stack_events += "%s: %s - %s - %s\n" % (str(event['Timestamp']), event['ResourceStatus'],
+                                                          event['ResourceType'], event['LogicalResourceId'])\
+                                    + ((('   %s\n') % event['ResourceStatusReason']) if 'ResourceStatusReason' in event else (''))
+                logging.error("Stack events:\n%s" % stack_events)
                 if create:
                     # This was a new stack - remove the unstable stack
                     logging.info("*** Removing unstable stack ...")
