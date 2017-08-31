@@ -186,7 +186,7 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
         response = cf_client.create_stack(StackName=stack_name,
                                           TemplateBody=json.dumps(template_body),
                                           Parameters=stack_params,
-                                          Capabilities='CAPABILITY_NAMED_IAM')
+                                          Capabilities=['CAPABILITY_NAMED_IAM'])
         if 'ResponseMetadata' in response and 'HTTPStatusCode' in response['ResponseMetadata'] \
                 and response['ResponseMetadata']['HTTPStatusCode'] == 200:
             if 'StackId' in response:
@@ -196,7 +196,7 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
             response = cf_client.update_stack(StackName=stack_name,
                                               TemplateBody=json.dumps(template_body),
                                               Parameters=stack_params,
-                                              Capabilities='CAPABILITY_NAMED_IAM')
+                                              Capabilities=['CAPABILITY_NAMED_IAM'])
             if 'ResponseMetadata' in response and 'HTTPStatusCode' in response['ResponseMetadata'] \
                     and response['ResponseMetadata']['HTTPStatusCode'] == 200:
                 if 'StackId' in response:
