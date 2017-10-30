@@ -17,7 +17,8 @@ import argparse
 import sys
 import os
 import json
-import boto3, botocore
+import boto3
+import botocore
 
 
 def _log_and_print_to_console(msg, log_level='info'):
@@ -95,8 +96,8 @@ def set_document_in_region(region, document_name, type, content, content_is_file
         content = parse_file_into_json_string(content)
 
     result = ssm.create_document(Name=document_name,
-                               Content=content,
-                               DocumentType=type)
+                                 Content=content,
+                                 DocumentType=type)
 
     if result:
         if 'DocumentDescription' in result:
@@ -210,7 +211,6 @@ def delete_document(region_list, document_name, profile=None):
         logging.debug("Checking region: " + region)
         result[region] = delete_document_in_region(region, document_name, profile)
     return result
-
 
 
 if __name__ == "__main__":

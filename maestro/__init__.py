@@ -1,1 +1,1 @@
-__all__=["aws","jenkins","tools", "core"] 
+__all__ = ["aws", "jenkins", "tools", "core"]

@@ -1,5 +1,6 @@
 import re
 
+
 def replaceall(replace_dict, string):
     """
     replaceall will take the keys in replace_dict and replace string with their corresponding values. Keys can be regular expressions.

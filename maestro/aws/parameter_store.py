@@ -16,7 +16,8 @@ import logging
 import argparse
 import sys
 import os
-import boto3, botocore
+import boto3
+import botocore
 
 
 def _log_and_print_to_console(msg, log_level='info'):
@@ -174,7 +175,6 @@ def delete_paramameter(region_list, param_name, profile=None):
         logging.debug("Checking region: " + region)
         result[region] = delete_param_in_region(region, param_name, profile)
     return result
-
 
 
 if __name__ == "__main__":

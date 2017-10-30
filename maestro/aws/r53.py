@@ -12,7 +12,8 @@ Note:
         AWS_SECRET_ACCESS_KEY
 """
 
-import boto3, botocore
+import boto3
+import botocore
 import argparse
 import logging
 
@@ -50,8 +51,6 @@ def get_all_records_in_zone(zone_id, profile=None):
 
 
 def get_record_in_zone(zone_id, record_name, profile=None):
-    session = boto3.session.Session(profile_name=profile)
-    r53_client = session.client('route53')
     record_list = get_all_records_in_zone(zone_id, profile)
     wildcard = False
     if '*' in record_name:
@@ -177,9 +176,9 @@ if __name__ == "__main__":
     # me_cmd_group.add_argument("--update", help="update Route 53 record", action='store_true')
 
     parser.add_argument("--zones", help="The name of the hosted zone(s) (all is valid)",
-                                 dest='zones', nargs='+', metavar='NAME')
+                        dest='zones', nargs='+', metavar='NAME')
     parser.add_argument("--records", help="The name of the resource record(s) (all is valid)",
-                                 dest='records', nargs='+', metavar='NAME')
+                        dest='records', nargs='+', metavar='NAME')
 
     parser.add_argument("--profile",
                         help="The name of an aws cli profile to use.", dest='profile', required=False)
@@ -227,7 +226,7 @@ if __name__ == "__main__":
                     else:
                         # Get specific records in all zones
                         for record in args.records:
-                            if not '*' in record:
+                            if '*' not in record:
                                 record = record_as_fqdn(record, zone['Name'])
                             record_info = get_record_in_zone(zone['Id'], record, profile=args.profile)
                             for r in record_info:
@@ -249,7 +248,7 @@ if __name__ == "__main__":
                         else:
                             # Get specific records in specifc zones
                             for record in args.records:
-                                if not '*' in record:
+                                if '*' not in record:
                                     record = record_as_fqdn(record, zone_info['Name'])
                                 record_info = get_record_in_zone(zone_info['Id'], record, profile=args.profile)
                                 for r in record_info:

@@ -5,6 +5,7 @@ Contains simple container class for Modules and the associated Exceptions.
 
 """
 
+
 class SingleObjectContainer(object):
     """
     Simple IoC Container.
@@ -14,11 +15,11 @@ class SingleObjectContainer(object):
     Don't change the object_type manually, and don't reuse it.
 
     """
-    
+
     __objects = None
     object_type = None
 
-    def __init__(self, obj_type = None):
+    def __init__(self, obj_type=None):
         if self.object_type is not None and not isinstance(Type, obj_type):
             raise TypeError("Expected type Type got " + str(type(obj_type)) + ".")
         self.object_type = obj_type
@@ -31,9 +32,9 @@ class SingleObjectContainer(object):
         if id is None:
             raise TypeError("You cannot use a None type as an id.")
 
-        if not isinstance(id,basestring):
+        if not isinstance(id, basestring):
             raise TypeError("You must pass a valid string for the id!")
-        
+
         if self.object_type is None:
             self.object_type = type(obj)
 
@@ -42,10 +43,10 @@ class SingleObjectContainer(object):
 
         if id in self.__objects.keys():
             raise ValueError("ID " + str(id) + " is already registered with this container.")
-        
+
         self.__objects[id] = obj
-        
-    def deregister(self,id):
+
+    def deregister(self, id):
         """
         Deregisters object with id. Will raise ValueError if the id does not exist.
         """
@@ -55,7 +56,7 @@ class SingleObjectContainer(object):
 
         del self.__objects[id]
 
-    def getinstance(self,id):
+    def getinstance(self, id):
         """
         Returns a new instance of an object with the provided id. The container does not track this object.
         """
@@ -65,15 +66,17 @@ class SingleObjectContainer(object):
 
         return item_type()
 
-    def unregister(self, id): return self.deregister(id)
-        
-    def __getitem__(self,id):
+    def unregister(self, id):
+        return self.deregister(id)
+
+    def __getitem__(self, id):
         if id not in self.__objects.keys():
             raise KeyError("A " + str(self.object_type) + " object with id " + str(id) + " is not registered with this container.")
 
-        return self.__objects[id] 
+        return self.__objects[id]
 
-    def get(self,id) : return self.__getitem__(id)
+    def get(self, id):
+        return self.__getitem__(id)
 
     def list(self):
         return self.__objects.items()

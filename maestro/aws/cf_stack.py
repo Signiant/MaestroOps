@@ -12,14 +12,18 @@ Note:
         AWS_SECRET_ACCESS_KEY
 """
 
-import sys, os
-import boto3, botocore
+import sys
+import os
+import boto3
+import botocore
 import argparse
-import json, yaml
+import json
+import yaml
 import logging
 import time
 
 logging.getLogger("botocore").setLevel(logging.CRITICAL)
+
 
 def read_from_file(file_path):
     '''
@@ -46,9 +50,9 @@ def process_stack_params_arg(stack_params):
     :param stack_params: list of 'key=value' strings
     :return: list of dicts
     '''
-    stack_parameters=[]
+    stack_parameters = []
     for param in stack_params:
-        key,value = param.split('=')
+        key, value = param.split('=')
         stack_parameters.append({'ParameterKey': key, 'ParameterValue': value})
     return stack_parameters
 
@@ -231,10 +235,10 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
 
                 logging.error("***  Stack operation failed.")
                 events = get_stack_events_in_region(region, stack_name, profile)
-                stack_events=""
+                stack_events = ""
                 for event in events:
                     stack_events += "%s: %s - %s - %s\n" % (str(event['Timestamp']), event['ResourceStatus'],
-                                                          event['ResourceType'], event['LogicalResourceId'])\
+                                                            event['ResourceType'], event['LogicalResourceId']) \
                                     + ((('   %s\n') % event['ResourceStatusReason']) if 'ResourceStatusReason' in event else (''))
                 logging.error("Stack events:\n%s" % stack_events)
                 if create:
@@ -466,7 +470,7 @@ def update_stack_with_given_parameter(region, stack_name, expected_value, new_va
     """
     stack = get_stack_with_name_or_id(region, stack_name)
     update_required, new_parameter_list = get_new_parameter_list_for_update(stack, expected_value, new_value,
-                                                                             parameter_to_change, force)
+                                                                            parameter_to_change, force)
     if update_required:
         return _update_stack_parameters(region, stack["StackId"], new_parameter_list, profile=profile, dryrun=dryrun)
 
@@ -486,7 +490,7 @@ def update_all_stacks_with_given_parameter(region, expected_value, new_value, pa
     update_status = {}
     for stack in get_stacks_with_given_parameter(region, parameter_to_change, profile=profile):
         update_required, new_parameter_list = get_new_parameter_list_for_update(stack, expected_value, new_value,
-                                                                                 parameter_to_change, force)
+                                                                                parameter_to_change, force)
         if update_required:
             update_status[stack['StackId']] = _update_stack_parameters(region, stack["StackId"], new_parameter_list,
                                                                        profile=profile, dryrun=dryrun)
@@ -505,14 +509,14 @@ if __name__ == "__main__":
     me_cmd_group.add_argument("--create-stack", help="create stack in given region(s)", dest='create_stack', metavar='STACK_NAME')
     me_cmd_group.add_argument("--update-stack", help="update stack in given region(s)", dest='update_stack', metavar='STACK_NAME')
     me_cmd_group.add_argument("--update",
-                        help="Update Parameter to new value for given stack in the specified region - must supply expected existing value and new value. STACK_ID can be the name or ID of the Stack",
-                        dest='update', nargs=3, metavar=('STACK_ID', 'EXPECTED_VALUE', 'NEW_VALUE'))
+                              help="Update Parameter to new value for given stack in the specified region - must supply expected existing value and new value. STACK_ID can be the name or ID of the Stack",
+                              dest='update', nargs=3, metavar=('STACK_ID', 'EXPECTED_VALUE', 'NEW_VALUE'))
     me_cmd_group.add_argument("--update-all",
-                        help="Update Parameter to new value for all stacks in the specified region - must supply expected existing value and new value",
-                        dest='update_all', nargs=2, metavar=('EXPECTED_VALUE', 'NEW_VALUE'))
+                              help="Update Parameter to new value for all stacks in the specified region - must supply expected existing value and new value",
+                              dest='update_all', nargs=2, metavar=('EXPECTED_VALUE', 'NEW_VALUE'))
     me_cmd_group.add_argument("--list",
-                        help="List all stacks in given region(s) that have a given parameter",
-                        dest='list', action='store_true')
+                              help="List all stacks in given region(s) that have a given parameter",
+                              dest='list', action='store_true')
 
     parser.add_argument("--stack-params", help="space separated list of key=value stack parameters", dest='stack_params',
                         nargs='+', required=False)

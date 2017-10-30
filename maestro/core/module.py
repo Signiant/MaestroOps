@@ -5,18 +5,22 @@ Modules are one-off runnable tasks. All modules should extend the Module() class
 
 Modules are meant to help build modular tools.
 """
-import logging, types, copy_reg, sys, traceback
+import types
+import copy_reg
+import sys
+import traceback
 from multiprocessing import Process, log_to_stderr
 from multiprocessing.pool import Pool
 from logging import INFO
 
-#Module states
+# Module states
 NOT_STARTED = 0
 RUNNING = 1
 DONE = 2
 PROCESSED = sys.maxsize
 
-#Exceptions
+
+# Exceptions
 class AsyncException(Exception):
     """
     Async exceptions are the exceptions that are returned from an AsyncModule. It provides the
@@ -25,18 +29,21 @@ class AsyncException(Exception):
     """
     traceback = None
 
+
 class NoDaemonProcess(Process):
     # make 'daemon' attribute always return False
     def _get_daemon(self):
         return False
+
     def _set_daemon(self, value):
         pass
     daemon = property(_get_daemon, _set_daemon)
 
+
 class NonDaemonizedPool(Pool):
     Process = NoDaemonProcess
 
-###TODO: change modules to accept kwargs and args
+# TODO: change modules to accept kwargs and args
 
 
 class Module(object):
@@ -46,19 +53,19 @@ class Module(object):
     id = ''
     __ioc__ = None
 
-    def __init__(self,ioc=None):
+    def __init__(self, ioc=None):
         self.__ioc__ = ioc
 
-    def getObject(self,name):
+    def getObject(self, name):
         return self.__ioc__.get(name)
 
     def getObjectInstance(self, name):
         return self.__ioc__.getinstance(name)
 
-    def run(self,kwargs={}):
+    def run(self, kwargs={}):
         pass
 
-    def start(self,kwargs={}):
+    def start(self, kwargs={}):
         self.run(kwargs=kwargs)
 
     def help(self):
@@ -67,6 +74,7 @@ class Module(object):
         except NameError:
             print ("No help defined for module " + str(type(self)))
         return True
+
 
 def __pickle_method__(m):
     """
@@ -77,7 +85,9 @@ def __pickle_method__(m):
     else:
         return getattr, (m.im_self, m.im_func.func_name)
 
+
 copy_reg.pickle(types.MethodType, __pickle_method__)
+
 
 class AsyncModule(Module):
     """
@@ -90,27 +100,27 @@ class AsyncModule(Module):
     exception = None
     __logger__ = None
 
-    def __init__(self,ioc=None):
+    def __init__(self, ioc=None):
         """
         Sets the current status and calls the superclass' init
         """
-        super(AsyncModule,self).__init__(ioc=ioc)
+        super(AsyncModule, self).__init__(ioc=ioc)
         self.status = NOT_STARTED
 
-    def start(self,kwargs={}):
+    def start(self, kwargs={}):
         """
         The main method to start a module. In Async, it will return immediately with the result from apply_async.
         """
         pool = NonDaemonizedPool(processes=1)
         self.status = RUNNING
-        result = pool.apply_async(self.__setup__,[kwargs],callback=self.__finish_internal__)
+        result = pool.apply_async(self.__setup__, [kwargs], callback=self.__finish_internal__)
         return result
 
-    def __setup__(self,kwargs):
+    def __setup__(self, kwargs):
         """
         Internal setup method, this should not be overridden unless you know what you're doing. Calls the run method.
         """
-        #If we're an AsyncModule, we need to catch Exceptions so they can be converted and passed to the parent process
+        # If we're an AsyncModule, we need to catch Exceptions so they can be converted and passed to the parent process
         try:
             return self.run(kwargs=kwargs)
         except Exception as e:
@@ -121,7 +131,7 @@ class AsyncModule(Module):
             except Exception as e:
                 print ("FATAL ERROR -- " + str(e))
 
-    def __finish_internal__(self,callback_args):
+    def __finish_internal__(self, callback_args):
         """
         Internal finish method. This should not be overridden unless you know what you're doing. Calls the finish method.
         """
@@ -132,7 +142,7 @@ class AsyncModule(Module):
         """
         Finish method, overridable but otherwise sticks the results into a variable, or sets the exception.
         """
-        if isinstance(results,Exception):
+        if isinstance(results, Exception):
             self.exception = results
         else:
             self.result = results
