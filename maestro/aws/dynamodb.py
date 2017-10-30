@@ -15,7 +15,8 @@ Note:
 import logging
 import argparse
 import sys
-import boto3, botocore
+import boto3
+import botocore
 
 
 def get_all_tables_in_region(region, profile=None):
@@ -26,7 +27,7 @@ def get_all_tables_in_region(region, profile=None):
     session = boto3.session.Session(profile_name=profile, region_name=region)
     dynamodb = session.client('dynamodb')
 
-    all_tables=[]
+    all_tables = []
     try:
         current_set = dynamodb.list_tables()
         all_tables.extend(current_set['TableNames'])
@@ -88,7 +89,7 @@ def get_all_items_in_table_in_region(region, table_name, profile=None):
         logging.error("You must supply a region")
         return []
 
-    all_items=[]
+    all_items = []
     # TODO: Implement this
     logging.error("Not yet implemented")
 
@@ -138,11 +139,10 @@ def get_item_from_table(region_list, table_name,
     result = {}
 
     # Build the key dict
-    key={}
+    key = {}
     key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
     if item_sort_key_value:
         key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
-
 
     for region in region_list:
         logging.debug("Checking region: " + region)
@@ -172,7 +172,7 @@ def put_item_in_table(region_list, table_name,
     result = {}
 
     # Build the key dict
-    key={}
+    key = {}
     key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
     if item_sort_key_value:
         key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
@@ -205,7 +205,7 @@ def update_item_in_table(region_list, table_name,
     result = {}
 
     # Build the key dict
-    key={}
+    key = {}
     key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
     if item_sort_key_value:
         key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
@@ -238,7 +238,7 @@ def create_item_in_table(region_list, table_name,
     result = {}
 
     # Build the key dict
-    key={}
+    key = {}
     key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
     if item_sort_key_value:
         key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
@@ -271,7 +271,7 @@ def delete_item_in_table(region_list, table_name,
     result = {}
 
     # Build the key dict
-    key={}
+    key = {}
     key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
     if item_sort_key_value:
         key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
@@ -297,7 +297,7 @@ def item_exists(region_list, table_name, item_partition_key_value, item_partitio
     result = {}
 
     # Build the key dict
-    key={}
+    key = {}
     key[item_partition_key_name] = {item_partition_key_type: item_partition_key_value}
     if item_sort_key_value:
         key[item_sort_key_name] = {item_sort_key_type: item_sort_key_value}
@@ -518,4 +518,3 @@ if __name__ == "__main__":
             if len(result[region]) > 0:
                 for table in result[region]:
                     logger.info('   ' + table)
-

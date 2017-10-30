@@ -1,6 +1,10 @@
-import os, platform, re, shutil
+import os
+import platform
+import re
+import shutil
 
-def get_tree_size(path = '.'):
+
+def get_tree_size(path='.'):
     """
     get_tree_size will return the total size of a directory tree
     """
@@ -14,7 +18,8 @@ def get_tree_size(path = '.'):
             total_size += os.path.getsize(fp)
     return total_size
 
-def get_case_insensitive_path(path = '.'):
+
+def get_case_insensitive_path(path='.'):
     """
     get_case_insensitive_path will check for the existance of a path in a case sensitive file system, regardless of the case of the inputted path. Returns the absolute path if found (with correct casing) or None.
     """
@@ -38,7 +43,7 @@ def get_case_insensitive_path(path = '.'):
     if not os.path.exists(path_root):
         raise OSError("Unable to locate path root: " + str(path_root))
 
-    #Build the full path, also used for error messages
+    # Build the full path, also used for error messages
     full_path = path_root
     for element in path_elements:
         if not element or element == "/" or element == ".":
@@ -46,12 +51,13 @@ def get_case_insensitive_path(path = '.'):
         found = False
         for directory in os.listdir(full_path):
             if element.lower() == directory.lower():
-                full_path = os.path.join(full_path,directory)
+                full_path = os.path.join(full_path, directory)
                 found = True
                 break
         if found is False:
             return None
     return full_path
+
 
 # Credit: Gian Marco Gherardi
 #         http://stackoverflow.com/questions/6260149/os-symlink-support-in-windows
@@ -69,13 +75,15 @@ def symlink(source, link_name):
         if csl(link_name, source, flags) == 0:
             raise ctypes.WinError()
 
-def purge(pattern, path, match_directories = False):
+
+def purge(pattern, path, match_directories=False):
     for root, dirs, files in os.walk(path):
         if match_directories is True:
             for dir in filter(lambda x: re.match(pattern, x), dirs):
-                shutil.rmtree(os.path.join(root,dir))
+                shutil.rmtree(os.path.join(root, dir))
         for file in filter(lambda x: re.match(pattern, x), files):
             os.remove(os.path.join(root, file))
+
 
 # Credit: John Machin
 #         http://stackoverflow.com/questions/4579908/cross-platform-splitting-of-path-in-python
@@ -86,10 +94,12 @@ def full_split(path, debug=False):
     parts = []
     while True:
         newpath, tail = os.path.split(path)
-        if debug: print (repr(path), (newpath, tail))
+        if debug:
+            print (repr(path), (newpath, tail))
         if newpath == path:
             assert not tail
-            if path: parts.append(path)
+            if path:
+                parts.append(path)
             break
         parts.append(tail)
         path = newpath

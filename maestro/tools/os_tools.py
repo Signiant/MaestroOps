@@ -1,4 +1,7 @@
-import os, sys, subprocess
+import os
+import sys
+import subprocess
+
 
 def check_pid(process_id):
     if sys.platform == "win32":
@@ -8,7 +11,7 @@ def check_pid(process_id):
             for task in tasklist.communicate()[0].split("\r\n"):
                 try:
                     pids.append(int(task[26:34]))
-                except:
+                except Exception:
                     pass
         except Exception as e:
             raise OSError("Unable to list process ids: " + str(e))
@@ -23,4 +26,3 @@ def check_pid(process_id):
             return False
         else:
             return True
-

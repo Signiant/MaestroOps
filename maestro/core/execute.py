@@ -2,6 +2,7 @@ from ioc import SingleObjectContainer
 from module import Module
 import sys
 
+
 class ModuleExecuter(Module):
     """
     Simple executer which parses kwargs and args. Passes kwargs into itself, and calls "start"
@@ -15,15 +16,16 @@ class ModuleExecuter(Module):
 
     def register(self, module):
         if self.__ioc__ is None:
-            self.__ioc__ = SingleObjectContainer(obj_type = Module)
+            self.__ioc__ = SingleObjectContainer(obj_type=Module)
         module.__ioc__ = self.__ioc__
         self.__ioc__.register(module.id, module)
 
-    #Entry point for the executer
+    # Entry point for the executer
     def entry(self):
         self.kwargs, self.args = parse_sysargs()
-        self.start(kwargs = self.kwargs)
-        
+        self.start(kwargs=self.kwargs)
+
+
 def parse_sysargs():
     current_key = None
     kwargs = dict()
@@ -49,4 +51,3 @@ def parse_sysargs():
         args.append(sys.argv[1])
 
     return kwargs, args
-
