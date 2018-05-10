@@ -131,7 +131,7 @@ def delete_stack(region_list, stack_name, profile=None):
     return result
 
 
-def update_stack_in_region(region, stack_name, stack_params, template_body, new_stack=False, profile=None, dryrun=False):
+def update_stack_in_region(region, stack_name, stack_params, template_body, tags=None, new_stack=False, profile=None, dryrun=False):
     '''
     Update a stack in the given region
     :param region: region to create/update the stack in
@@ -143,7 +143,7 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
     session = boto3.session.Session(profile_name=profile, region_name=region)
     cf_client = session.client('cloudformation')
 
-    result = None
+    result = False
 
     create = False
     if new_stack:
@@ -187,20 +187,34 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
     stack_arn = None
 
     if create:
-        response = cf_client.create_stack(StackName=stack_name,
-                                          TemplateBody=json.dumps(template_body),
-                                          Parameters=stack_params,
-                                          Capabilities=['CAPABILITY_NAMED_IAM'])
+        if tags:
+            response = cf_client.create_stack(StackName=stack_name,
+                                              TemplateBody=json.dumps(template_body),
+                                              Parameters=stack_params,
+                                              Tags=tags,
+                                              Capabilities=['CAPABILITY_NAMED_IAM'])
+        else:
+            response = cf_client.create_stack(StackName=stack_name,
+                                              TemplateBody=json.dumps(template_body),
+                                              Parameters=stack_params,
+                                              Capabilities=['CAPABILITY_NAMED_IAM'])
         if 'ResponseMetadata' in response and 'HTTPStatusCode' in response['ResponseMetadata'] \
                 and response['ResponseMetadata']['HTTPStatusCode'] == 200:
             if 'StackId' in response:
                 stack_arn = response['StackId']
     else:
         try:
-            response = cf_client.update_stack(StackName=stack_name,
-                                              TemplateBody=json.dumps(template_body),
-                                              Parameters=stack_params,
-                                              Capabilities=['CAPABILITY_NAMED_IAM'])
+            if tags:
+                response = cf_client.update_stack(StackName=stack_name,
+                                                  TemplateBody=json.dumps(template_body),
+                                                  Parameters=stack_params,
+                                                  Tags=tags,
+                                                  Capabilities=['CAPABILITY_NAMED_IAM'])
+            else:
+                response = cf_client.update_stack(StackName=stack_name,
+                                                  TemplateBody=json.dumps(template_body),
+                                                  Parameters=stack_params,
+                                                  Capabilities=['CAPABILITY_NAMED_IAM'])
             if 'ResponseMetadata' in response and 'HTTPStatusCode' in response['ResponseMetadata'] \
                     and response['ResponseMetadata']['HTTPStatusCode'] == 200:
                 if 'StackId' in response:
@@ -218,7 +232,7 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
         CURRENT_CHECK = 0
         MAX_CHECKS = 60
         SLEEP_SECONDS = 30
-        logging.info("Creating stack with name %s in region %s " % (stack_name, region))
+        logging.info(('Creating' if create else 'Updating') + ' stack with name %s in region %s ' % (stack_name, region))
         logging.info("*** This may take up to %5d seconds..." % (MAX_CHECKS * SLEEP_SECONDS))
         stack_status = "Unknown"
         while CURRENT_CHECK <= MAX_CHECKS:
@@ -249,6 +263,7 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
                 break
             elif 'COMPLETE' in stack_status:
                 logging.info('*** ' + ('create' if create else 'update') + ' completed successfully')
+                result = True
                 break
             else:
                 logging.info("Current stack status: %s" % stack_status)
@@ -256,12 +271,10 @@ def update_stack_in_region(region, stack_name, stack_params, template_body, new_
             time.sleep(SLEEP_SECONDS)
         if CURRENT_CHECK > MAX_CHECKS and 'COMPLETE' not in stack_status:
             logging.error("*** Stack has not yet stabilized in %5d seconds - check the cloudformation console or the ECS events tab for more detail" % (MAX_CHECKS * SLEEP_SECONDS))
-        else:
-            result = True
     return result
 
 
-def update_stack(region_list, stack_name, stack_params, template_body, profile=None, dryrun=False):
+def update_stack(region_list, stack_name, stack_params, template_body, tags=None, profile=None, dryrun=False):
     '''
     Create/Update a stack in the given regions
     :param region_list: list of regions to create the stack in
@@ -275,11 +288,11 @@ def update_stack(region_list, stack_name, stack_params, template_body, profile=N
     for region in region_list:
         logging.debug("Creating stack in region: " + region)
         result[region] = update_stack_in_region(region, stack_name, stack_params, template_body,
-                                                profile=profile, dryrun=dryrun)
+                                                tags=tags, profile=profile, dryrun=dryrun)
     return result
 
 
-def create_stack(region_list, stack_name, stack_params, template_body, profile=None, dryrun=False):
+def create_stack(region_list, stack_name, stack_params, template_body, tags=None, profile=None, dryrun=False):
     '''
     Create a stack in the given regions
     :param region_list: list of regions to create the stack in
@@ -292,8 +305,8 @@ def create_stack(region_list, stack_name, stack_params, template_body, profile=N
 
     for region in region_list:
         logging.debug("Creating stack in region: " + region)
-        result[region] = update_stack_in_region(region, stack_name, stack_params, template_body, new_stack=True,
-                                                profile=profile, dryrun=dryrun)
+        result[region] = update_stack_in_region(region, stack_name, stack_params, template_body, tags=None,
+                                                new_stack=True, profile=profile, dryrun=dryrun)
     return result
 
 
