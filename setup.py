@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 from distutils.core import setup
 
 setup(name='MaestroOps',
-      version='0.8.4',
+      version='0.8.5',
       description='Python Automation Framework for Development Operations Teams',
       author='Signiant DevOps',
       author_email='devops@signiant.com',
