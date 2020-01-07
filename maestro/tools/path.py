@@ -79,9 +79,9 @@ def symlink(source, link_name):
 def purge(pattern, path, match_directories=False):
     for root, dirs, files in os.walk(path):
         if match_directories is True:
-            for dir in filter(lambda x: re.match(pattern, x), dirs):
+            for dir in [x for x in dirs if re.match(pattern, x)]:
                 shutil.rmtree(os.path.join(root, dir))
-        for file in filter(lambda x: re.match(pattern, x), files):
+        for file in [x for x in files if re.match(pattern, x)]:
             os.remove(os.path.join(root, file))
 
 

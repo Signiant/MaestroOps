@@ -32,7 +32,7 @@ class SingleObjectContainer(object):
         if id is None:
             raise TypeError("You cannot use a None type as an id.")
 
-        if not isinstance(id, basestring):
+        if not isinstance(id, str):
             raise TypeError("You must pass a valid string for the id!")
 
         if self.object_type is None:
@@ -41,7 +41,7 @@ class SingleObjectContainer(object):
         if not isinstance(obj, self.object_type):
             raise TypeError("The object passed to the Container was not of type " + str(self.object_type) + ".")
 
-        if id in self.__objects.keys():
+        if id in list(self.__objects.keys()):
             raise ValueError("ID " + str(id) + " is already registered with this container.")
 
         self.__objects[id] = obj
@@ -51,7 +51,7 @@ class SingleObjectContainer(object):
         Deregisters object with id. Will raise ValueError if the id does not exist.
         """
 
-        if id not in self.__objects.keys():
+        if id not in list(self.__objects.keys()):
             raise ValueError("ID " + str(id) + " is not registered with this container.")
 
         del self.__objects[id]
@@ -60,7 +60,7 @@ class SingleObjectContainer(object):
         """
         Returns a new instance of an object with the provided id. The container does not track this object.
         """
-        if id not in self.__objects.keys():
+        if id not in list(self.__objects.keys()):
             raise ValueError("ID " + str(id) + " is not registered with this container.")
         item_type = type(self[id])
 
@@ -70,7 +70,7 @@ class SingleObjectContainer(object):
         return self.deregister(id)
 
     def __getitem__(self, id):
-        if id not in self.__objects.keys():
+        if id not in list(self.__objects.keys()):
             raise KeyError("A " + str(self.object_type) + " object with id " + str(id) + " is not registered with this container.")
 
         return self.__objects[id]
@@ -79,4 +79,4 @@ class SingleObjectContainer(object):
         return self.__getitem__(id)
 
     def list(self):
-        return self.__objects.items()
+        return list(self.__objects.items())
