@@ -41,7 +41,21 @@ class NoDaemonProcess(Process):
 
 
 class NonDaemonizedPool(Pool):
-    Process = NoDaemonProcess
+    def Process(self, *args, **kwds):
+        proc = super(NonDaemonizedPool, self).Process(*args, **kwds)
+
+        class NonDaemonProcess(proc.__class__):
+            """Monkey-patch process to ensure it is never daemonized"""
+            @property
+            def daemon(self):
+                return False
+
+            @daemon.setter
+            def daemon(self, val):
+                pass
+
+        proc.__class__ = NonDaemonProcess
+        return proc
 
 # TODO: change modules to accept kwargs and args
 
