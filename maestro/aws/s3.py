@@ -203,7 +203,7 @@ read access.
                 return True
             if len(kwargs) == 0 and self.bucket_name is None and self.source_url is None:
                 return self.help()
-            for key, val in kwargs.iteritems():
+            for key, val in list(kwargs.items()):
                 if key in HELP_KEYS:
                     return self.help()
                 elif key in BUCKET_KEYS:
@@ -324,7 +324,7 @@ if __name__ == "__main__":
         else:
             keyvals[current_key] = None
             current_key = arg.lstrip('-')
-    if current_key is not None and current_key not in keyvals.keys():
+    if current_key is not None and current_key not in list(keyvals.keys()):
         keyvals[current_key] = ""
 
     s3dl = AsyncS3Downloader(None)

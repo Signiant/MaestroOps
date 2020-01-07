@@ -6,7 +6,7 @@ Modules are one-off runnable tasks. All modules should extend the Module() class
 Modules are meant to help build modular tools.
 """
 import types
-import copy_reg
+import copyreg
 import sys
 import traceback
 from multiprocessing import Process, log_to_stderr
@@ -41,7 +41,21 @@ class NoDaemonProcess(Process):
 
 
 class NonDaemonizedPool(Pool):
-    Process = NoDaemonProcess
+    def Process(self, *args, **kwds):
+        proc = super(NonDaemonizedPool, self).Process(*args, **kwds)
+
+        class NonDaemonProcess(proc.__class__):
+            """Monkey-patch process to ensure it is never daemonized"""
+            @property
+            def daemon(self):
+                return False
+
+            @daemon.setter
+            def daemon(self, val):
+                pass
+
+        proc.__class__ = NonDaemonProcess
+        return proc
 
 # TODO: change modules to accept kwargs and args
 
@@ -70,9 +84,9 @@ class Module(object):
 
     def help(self):
         try:
-            print (self.HELPTEXT)
+            print(self.HELPTEXT)
         except NameError:
-            print ("No help defined for module " + str(type(self)))
+            print("No help defined for module " + str(type(self)))
         return True
 
 
@@ -80,13 +94,13 @@ def __pickle_method__(m):
     """
     Pickling override for using pickle with instance methods.
     """
-    if m.im_self is None:
-        return getattr, (m.im_class, m.im_func.func_name)
+    if m.__self__ is None:
+        return getattr, (m.__self__.__class__, m.__func__.__name__)
     else:
-        return getattr, (m.im_self, m.im_func.func_name)
+        return getattr, (m.__self__, m.__func__.__name__)
 
 
-copy_reg.pickle(types.MethodType, __pickle_method__)
+copyreg.pickle(types.MethodType, __pickle_method__)
 
 
 class AsyncModule(Module):
@@ -129,7 +143,7 @@ class AsyncModule(Module):
                 exc.traceback = "".join(traceback.format_exception(*sys.exc_info()))
                 return exc
             except Exception as e:
-                print ("FATAL ERROR -- " + str(e))
+                print("FATAL ERROR -- " + str(e))
 
     def __finish_internal__(self, callback_args):
         """

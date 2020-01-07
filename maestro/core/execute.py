@@ -1,5 +1,5 @@
-from ioc import SingleObjectContainer
-from module import Module
+from .ioc import SingleObjectContainer
+from .module import Module
 import sys
 
 
