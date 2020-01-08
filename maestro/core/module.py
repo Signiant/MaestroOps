@@ -139,7 +139,7 @@ class AsyncModule(Module):
             return self.run(kwargs=kwargs)
         except Exception as e:
             try:
-                exc = AsyncException(e.message)
+                exc = AsyncException(e)
                 exc.traceback = "".join(traceback.format_exception(*sys.exc_info()))
                 return exc
             except Exception as e:
