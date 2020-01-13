@@ -9,7 +9,7 @@ import types
 import copyreg
 import sys
 import traceback
-from multiprocessing import Process, log_to_stderr
+import multiprocessing
 from multiprocessing.pool import Pool
 from logging import INFO
 
@@ -30,32 +30,24 @@ class AsyncException(Exception):
     traceback = None
 
 
-class NoDaemonProcess(Process):
-    # make 'daemon' attribute always return False
-    def _get_daemon(self):
+class NoDaemonProcess(multiprocessing.Process):
+    @property
+    def daemon(self):
         return False
 
-    def _set_daemon(self, value):
+    @daemon.setter
+    def daemon(self, value):
         pass
-    daemon = property(_get_daemon, _set_daemon)
+
+
+class NoDaemonContext(type(multiprocessing.get_context())):
+    Process = NoDaemonProcess
 
 
 class NonDaemonizedPool(Pool):
-    def Process(self, *args, **kwds):
-        proc = super(NonDaemonizedPool, self).Process(*args, **kwds)
-
-        class NonDaemonProcess(proc.__class__):
-            """Monkey-patch process to ensure it is never daemonized"""
-            @property
-            def daemon(self):
-                return False
-
-            @daemon.setter
-            def daemon(self, val):
-                pass
-
-        proc.__class__ = NonDaemonProcess
-        return proc
+    def __init__(self, *args, **kwargs):
+        kwargs['context'] = NoDaemonContext()
+        super(NonDaemonizedPool, self).__init__(*args, **kwargs)
 
 # TODO: change modules to accept kwargs and args
 
@@ -166,6 +158,6 @@ class AsyncModule(Module):
         Log method, currently set to only print to the console. Thread-safe.
         """
         if self.__logger__ is None:
-            self.__logger__ = log_to_stderr()
+            self.__logger__ = multiprocessing.log_to_stderr()
             self.__logger__.setLevel(INFO)
         self.__logger__.info(message)
