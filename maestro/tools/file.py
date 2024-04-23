@@ -22,7 +22,7 @@ def sha256_simple(filename):
     return base64.b64encode(m.digest()).decode('utf-8')
 
 def sha256_multipart(file_path, chunk_size=16 * 1024 * 1024):
-    # chuck size of 16 mb works for our s3 downloads, multiplayer may change if smaller chuck sizes
+    # chuck size of 16 mb works for our s3 downloads, multiplier may change if smaller chuck sizes
     sha256_hashes = []
     with open(file_path, 'rb') as fp:
         while True:
