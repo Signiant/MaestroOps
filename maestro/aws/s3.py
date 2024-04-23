@@ -51,7 +51,11 @@ def find_files(bucket, prefix, case_sensitive=True, connection=None, anonymous=T
         for obj in remote_bucket.objects.all():
             if obj.key.lower().startswith(prefix.lower()) and not obj.key.endswith("/"):
                 if sha256:
-                    objsum = s3client.head_object(Bucket=bucket, Key=obj.key, ChecksumMode='ENABLED')['ResponseMetadata']['HTTPHeaders']["x-amz-checksum-sha256"]
+                    try:
+                        objsum = s3client.head_object(Bucket=bucket, Key=obj.key, ChecksumMode='ENABLED')['ResponseMetadata']['HTTPHeaders']["x-amz-checksum-sha256"]
+                    except Exception:
+                        raise ChecksumFailure(f"Unable head object for checksum. Please verify sha256 exists on object {bucket}/{obj.key}")
+                        objsum = "unknown"
                 else:
                     objsum = s3client.get_object(Bucket=bucket, Key=obj.key)["ETag"][1:-1]
                 files.append((obj, objsum))
@@ -60,7 +64,12 @@ def find_files(bucket, prefix, case_sensitive=True, connection=None, anonymous=T
         sum_files = list()
         for f in files:
             if sha256:
-                objsum = s3client.head_object(Bucket=bucket, Key=f.key, ChecksumMode='ENABLED')['ResponseMetadata']['HTTPHeaders']["x-amz-checksum-sha256"]
+                try:
+                    objsum = s3client.head_object(Bucket=bucket, Key=f.key, ChecksumMode='ENABLED')['ResponseMetadata']['HTTPHeaders']["x-amz-checksum-sha256"]
+                except Exception:
+                    raise ChecksumFailure(
+                        f"Unable head object for checksum. Please verify sha256 exists on object {bucket}/{obj.key}")
+                    objsum = "unknown"
             else:
                 objsum = s3client.get_object_attributes(Bucket=bucket, Key=f.key, ObjectAttributes=['ETag'])[1:-1]
             sum_files.append((f, objsum))
@@ -147,6 +156,9 @@ def verify_bucket(bucket_name, connection=None):
 
 
 class DownloadError(Exception):
+    pass
+
+class ChecksumFailure(Exception):
     pass
 
 
