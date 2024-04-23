@@ -13,7 +13,7 @@ from botocore.client import Config
 from ..core import module
 
 
-def find_files(bucket, prefix, case_sensitive=True, connection=None, anonymous=True):
+def find_files(bucket, prefix, case_sensitive=True, connection=None, anonymous=True, sha256=False):
     """
     find_files will connect and return files found in bucket with prefix, all other keys are ignored.
 
@@ -22,7 +22,6 @@ def find_files(bucket, prefix, case_sensitive=True, connection=None, anonymous=T
     Returns a boto3 objectCollection containing matching files, or an empty collection. Will not return any non-file keys.
     Will raise a DownloadError with an appropriate error message when unable to return a collection.
     """
-
     s3client = None
     if connection is None:
         try:
@@ -51,13 +50,28 @@ def find_files(bucket, prefix, case_sensitive=True, connection=None, anonymous=T
         # Iterate over objects, and append only ones that match lower case and don't end with '/'
         for obj in remote_bucket.objects.all():
             if obj.key.lower().startswith(prefix.lower()) and not obj.key.endswith("/"):
-                objsum = s3client.get_object(Bucket=bucket, Key=obj.key)["ETag"][1:-1]
+                if sha256:
+                    try:
+                        objsum = s3client.head_object(Bucket=bucket, Key=obj.key, ChecksumMode='ENABLED')['ResponseMetadata']['HTTPHeaders']["x-amz-checksum-sha256"]
+                    except Exception:
+                        raise ChecksumFailure(f"Unable head object for checksum. Please verify sha256 exists on object {bucket}/{obj.key}")
+                        objsum = "unknown"
+                else:
+                    objsum = s3client.get_object(Bucket=bucket, Key=obj.key)["ETag"][1:-1]
                 files.append((obj, objsum))
     else:  # If we're case sensitive, just use the filter
         files = remote_bucket.objects.filter(Prefix=prefix)
         sum_files = list()
         for f in files:
-            objsum = s3client.get_object(Bucket=bucket, Key=f.key)["ETag"][1:-1]
+            if sha256:
+                try:
+                    objsum = s3client.head_object(Bucket=bucket, Key=f.key, ChecksumMode='ENABLED')['ResponseMetadata']['HTTPHeaders']["x-amz-checksum-sha256"]
+                except Exception:
+                    raise ChecksumFailure(
+                        f"Unable head object for checksum. Please verify sha256 exists on object {bucket}/{obj.key}")
+                    objsum = "unknown"
+            else:
+                objsum = s3client.get_object_attributes(Bucket=bucket, Key=f.key, ObjectAttributes=['ETag'])[1:-1]
             sum_files.append((f, objsum))
         files = sum_files
 
@@ -144,6 +158,9 @@ def verify_bucket(bucket_name, connection=None):
 class DownloadError(Exception):
     pass
 
+class ChecksumFailure(Exception):
+    pass
+
 
 # MODULES #
 
@@ -190,6 +207,7 @@ read access.
         region = None
         source_url = None
         anonymous = None
+        sha256 = False
 
         def run(self, kwargs):
             if kwargs is not None and len(kwargs) > 0:
@@ -256,7 +274,7 @@ read access.
             # Return value
             destination_files = list()
             # Loop through found files
-            for obj, checksum in find_files(self.bucket_name, self.prefix, case_sensitive=not self.case_insensitive, connection=s3, anonymous=self.anonymous):
+            for obj, checksum in find_files(self.bucket_name, self.prefix, case_sensitive=not self.case_insensitive, connection=s3, anonymous=self.anonymous, sha256=self.sha256):
                 if obj.key.endswith("/"):
                     continue
                 destination = self.destination_path
