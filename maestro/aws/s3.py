@@ -207,6 +207,7 @@ read access.
         region = None
         source_url = None
         anonymous = None
+        sha256 = False
 
         def run(self, kwargs):
             if kwargs is not None and len(kwargs) > 0:
@@ -273,7 +274,7 @@ read access.
             # Return value
             destination_files = list()
             # Loop through found files
-            for obj, checksum in find_files(self.bucket_name, self.prefix, case_sensitive=not self.case_insensitive, connection=s3, anonymous=self.anonymous, sha256=True):
+            for obj, checksum in find_files(self.bucket_name, self.prefix, case_sensitive=not self.case_insensitive, connection=s3, anonymous=self.anonymous, sha256=self.sha256):
                 if obj.key.endswith("/"):
                     continue
                 destination = self.destination_path
