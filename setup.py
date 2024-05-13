@@ -9,5 +9,5 @@ setup(name='MaestroOps',
       url='https://www.signiant.com',
       packages=find_packages(),
       license='MIT',
-      install_requires=['boto3>=1.33.1,<1.34.0']
+      install_requires=['boto3>=1.33.1']
      )
