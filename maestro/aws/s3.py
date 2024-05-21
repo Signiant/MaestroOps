@@ -54,7 +54,7 @@ def find_files(bucket, prefix, case_sensitive=True, connection=None, anonymous=T
                     try:
                         objsum = s3client.head_object(Bucket=bucket, Key=obj.key, ChecksumMode='ENABLED')['ResponseMetadata']['HTTPHeaders']["x-amz-checksum-sha256"]
                     except Exception:
-                        raise ChecksumFailure(f"Unable head object for checksum. Please verify sha256 exists on object {bucket}/{obj.key}")
+                        print(f"Unable head object for checksum. Please verify sha256 exists on object {bucket}/{obj.key}")
                         objsum = "unknown"
                 else:
                     objsum = s3client.get_object(Bucket=bucket, Key=obj.key)["ETag"][1:-1]
@@ -67,8 +67,7 @@ def find_files(bucket, prefix, case_sensitive=True, connection=None, anonymous=T
                 try:
                     objsum = s3client.head_object(Bucket=bucket, Key=f.key, ChecksumMode='ENABLED')['ResponseMetadata']['HTTPHeaders']["x-amz-checksum-sha256"]
                 except Exception:
-                    raise ChecksumFailure(
-                        f"Unable head object for checksum. Please verify sha256 exists on object {bucket}/{obj.key}")
+                    print(f"Unable head object for checksum. Please verify sha256 exists on object {bucket}/{f.key}")
                     objsum = "unknown"
             else:
                 objsum = s3client.get_object_attributes(Bucket=bucket, Key=f.key, ObjectAttributes=['ETag'])[1:-1]
@@ -157,10 +156,6 @@ def verify_bucket(bucket_name, connection=None):
 
 class DownloadError(Exception):
     pass
-
-class ChecksumFailure(Exception):
-    pass
-
 
 # MODULES #
 
